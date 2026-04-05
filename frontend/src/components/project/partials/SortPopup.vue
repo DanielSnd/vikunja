@@ -15,31 +15,14 @@
 					{{ $t('sorting.description') }}
 				</p>
 				<div class="field">
-					<label class="label">{{ $t('sorting.sortBy') }}</label>
 					<div class="select is-fullwidth">
-						<select v-model="sortField">
+						<select v-model="selected">
 							<option
 								v-for="o in options"
 								:key="o.value"
 								:value="o.value"
 							>
 								{{ o.label }}
-							</option>
-						</select>
-					</div>
-				</div>
-				<div
-					v-if="!isManualSort"
-					class="field"
-				>
-					<label class="label">{{ $t('sorting.order') }}</label>
-					<div class="select is-fullwidth">
-						<select v-model="sortOrder">
-							<option value="asc">
-								{{ $t('sorting.asc') }}
-							</option>
-							<option value="desc">
-								{{ $t('sorting.desc') }}
 							</option>
 						</select>
 					</div>
@@ -76,37 +59,47 @@ const emit = defineEmits<{ 'update:modelValue': [value: SortBy] }>()
 
 const {t} = useI18n({useScope: 'global'})
 
-const sortField = ref<string>('position')
-const sortOrder = ref<'asc' | 'desc'>('asc')
-
-const isManualSort = computed(() => sortField.value === 'position')
+const MANUAL = 'position:asc'
+const selected = ref<string>(MANUAL)
 
 watch(() => props.modelValue, (val) => {
-	const key = Object.keys(val)[0] || 'position'
-	sortField.value = key
-	sortOrder.value = (val as SortBy)[key as keyof SortBy] ?? 'asc'
+	const key = Object.keys(val)[0]
+	if (!key || key === 'position') {
+		selected.value = MANUAL
+		return
+	}
+	const order = (val as Record<string, 'asc' | 'desc'>)[key] ?? 'asc'
+	selected.value = `${key}:${order}`
 }, {immediate: true})
 
 const options = computed(() => {
-	const manualOption = {value: 'position', label: t('sorting.manually')}
-	const otherOptions = [
-		{value: 'title', label: t('task.attributes.title')},
-		{value: 'priority', label: t('task.attributes.priority')},
-		{value: 'due_date', label: t('task.attributes.dueDate')},
-		{value: 'start_date', label: t('task.attributes.startDate')},
-		{value: 'end_date', label: t('task.attributes.endDate')},
-		{value: 'percent_done', label: t('task.attributes.percentDone')},
-		{value: 'created', label: t('task.attributes.created')},
-		{value: 'updated', label: t('task.attributes.updated')},
+	const manual = {value: MANUAL, label: t('sorting.manually')}
+	const rest = [
+		{value: 'title:asc', label: t('sorting.options.titleAsc')},
+		{value: 'title:desc', label: t('sorting.options.titleDesc')},
+		{value: 'priority:desc', label: t('sorting.options.priorityDesc')},
+		{value: 'priority:asc', label: t('sorting.options.priorityAsc')},
+		{value: 'due_date:asc', label: t('sorting.options.dueDateAsc')},
+		{value: 'due_date:desc', label: t('sorting.options.dueDateDesc')},
+		{value: 'start_date:asc', label: t('sorting.options.startDateAsc')},
+		{value: 'start_date:desc', label: t('sorting.options.startDateDesc')},
+		{value: 'end_date:asc', label: t('sorting.options.endDateAsc')},
+		{value: 'end_date:desc', label: t('sorting.options.endDateDesc')},
+		{value: 'percent_done:desc', label: t('sorting.options.percentDoneDesc')},
+		{value: 'percent_done:asc', label: t('sorting.options.percentDoneAsc')},
+		{value: 'created:desc', label: t('sorting.options.createdDesc')},
+		{value: 'created:asc', label: t('sorting.options.createdAsc')},
+		{value: 'updated:desc', label: t('sorting.options.updatedDesc')},
+		{value: 'updated:asc', label: t('sorting.options.updatedAsc')},
 	].sort((a, b) => a.label.localeCompare(b.label))
 
-	return [manualOption, ...otherOptions]
+	return [manual, ...rest]
 })
 
 function applySort(close: () => void) {
+	const [field, order] = selected.value.split(':') as [string, 'asc' | 'desc']
 	const sort: SortBy = {} as SortBy
-	const order = isManualSort.value ? 'asc' : sortOrder.value
-	;(sort as Record<string, 'asc' | 'desc'>)[sortField.value] = order
+	;(sort as Record<string, 'asc' | 'desc'>)[field] = order
 	emit('update:modelValue', sort)
 	close()
 }
