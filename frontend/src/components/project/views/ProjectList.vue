@@ -12,7 +12,7 @@
 					v-model="params"
 					:view-id="viewId"
 					:project-id="projectId"
-					@update:modelValue="prepareFiltersAndLoadTasks()"
+					@update:modelValue="loadTasks()"
 				/>
 				<SortPopup
 					v-model="sortByParam"
@@ -285,10 +285,6 @@ async function saveTaskPosition(e: { originalEvent?: MouseEvent, to: HTMLElement
 		...task,
 		position,
 	}
-}
-
-function prepareFiltersAndLoadTasks() {
-	loadTasks()
 }
 
 const taskRefs = ref<(InstanceType<typeof SingleTaskInProject> | null)[]>([])
