@@ -935,25 +935,24 @@ $crazy-height-calculation-tasks: '#{$crazy-height-calculation} - 1rem - 2.5rem -
 $filter-container-height: '1rem - #{$switch-view-height}';
 
 .kanban {
-	overflow-x: auto;
-	overflow-y: hidden;
-	block-size: calc(#{$crazy-height-calculation});
-	margin: 0 -1.5rem;
-	padding: 0 1.5rem;
+		overflow-x: hidden;
+		overflow-y: auto;
+		block-size: calc(#{$crazy-height-calculation});
+		margin: 0 -1.5rem;
+		padding: 0 1.5rem;
 
-	&:focus, .bucket .tasks:focus {
-		box-shadow: none;
-	}
+		&:focus, .bucket .tasks:focus {
+			box-shadow: none;
+		}
 
-	@media screen and (max-width: $tablet) {
-		block-size: calc(#{$crazy-height-calculation} - #{$filter-container-height} + 9px);
-		scroll-snap-type: x mandatory;
-		margin: 0 -0.5rem;
-	}
+		@media screen and (max-width: $tablet) {
+			block-size: calc(#{$crazy-height-calculation} - #{$filter-container-height} + 9px);
+			margin: 0 -0.5rem;
+		}
 
-	&-bucket-container {
-		display: flex;
-	}
+		&-bucket-container {
+			display: block;
+		}
 
 	.ghost {
 		position: relative;
@@ -978,36 +977,25 @@ $filter-container-height: '1rem - #{$switch-view-height}';
 	.bucket {
 		border-radius: $radius;
 		position: relative;
-
-		margin: 0 $bucket-right-margin 0 0;
-		max-block-size: calc(100% - 1rem); // 1rem spacing to the bottom
-		min-block-size: 20px;
-		inline-size: $bucket-width;
+		margin: 0 0 1rem 0;
+		padding: 0.75rem;
 		display: flex;
 		flex-direction: column;
-		overflow: hidden; // Make sure the edges are always rounded
-
-		@media screen and (max-width: $tablet) {
-			scroll-snap-align: center;
-		}
+		overflow: hidden;
 
 		.tasks {
-			overflow: hidden auto;
-			block-size: 100%;
+			display: grid;
+			grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+			gap: 1rem;
+			margin-top: 0.75rem;
 		}
 
 		.task-item {
 			background-color: var(--grey-100);
 			padding: .25rem .5rem;
 			position: relative;
-
-			&:first-of-type {
-				padding-block-start: .5rem;
-			}
-
-			&:last-of-type {
-				padding-block-end: .5rem;
-			}
+			border-radius: $radius;
+			min-inline-size: 0;
 
 			.handle {
 				position: absolute;
@@ -1031,11 +1019,6 @@ $filter-container-height: '1rem - #{$switch-view-height}';
 		}
 
 		&.new-bucket {
-			// Because of reasons, this button ignores the margin we gave it to the right.
-			// To make it still look like it has some, we modify the container to have a padding of 1rem,
-			// which is the same as the margin it should have. Then we make the container itself bigger
-			// to hide the fact we just made the button smaller.
-			min-inline-size: calc(#{$bucket-width} + 1rem);
 			background: transparent;
 
 			.button {
@@ -1045,11 +1028,6 @@ $filter-container-height: '1rem - #{$switch-view-height}';
 		}
 
 		&.is-collapsed {
-			align-self: flex-start;
-			transform: rotate(90deg) translateY(-100%);
-			transform-origin: top left;
-			// Using negative margins instead of translateY here to make all other buckets fill the empty space
-			margin-inline-end: calc((#{$bucket-width} - #{$bucket-header-height} - #{$bucket-right-margin}) * -1);
 			cursor: pointer;
 
 			.tasks, .bucket-footer {

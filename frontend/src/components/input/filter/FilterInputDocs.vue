@@ -22,7 +22,9 @@ const showDocs = ref(false)
 		<ul>
 			<li><code>done</code>: {{ $t('filters.query.help.fields.done') }}</li>
 			<li><code>priority</code>: {{ $t('filters.query.help.fields.priority') }}</li>
+			<li><code>status</code>: {{ $t('filters.query.help.fields.status') }}</li>
 			<li><code>percentDone</code>: {{ $t('filters.query.help.fields.percentDone') }}</li>
+			<li><code>effort</code>: {{ $t('filters.query.help.fields.effort') }}</li>
 			<li><code>dueDate</code>: {{ $t('filters.query.help.fields.dueDate') }}</li>
 			<li><code>startDate</code>: {{ $t('filters.query.help.fields.startDate') }}</li>
 			<li><code>endDate</code>: {{ $t('filters.query.help.fields.endDate') }}</li>
@@ -56,6 +58,7 @@ const showDocs = ref(false)
 		<p>{{ $t('filters.query.help.examples.intro') }}</p>
 		<ul>
 			<li><code>priority = 4</code>: {{ $t('filters.query.help.examples.priorityEqual') }}</li>
+			<li><code>status = 2</code>: {{ $t('filters.query.help.examples.statusEqual') }}</li>
 			<li><code>dueDate &lt; now</code>: {{ $t('filters.query.help.examples.dueDatePast') }}</li>
 			<li>
 				<code>done = false &amp;&amp; priority &gt;= 3</code>:

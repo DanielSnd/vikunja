@@ -46,7 +46,9 @@ export const AVAILABLE_FILTER_FIELDS = [
 	...PROJECT_FIELDS,
 	'done',
 	'priority',
+	'status',
 	'percentDone',
+	'effort'
 ]
 
 export const FILTER_OPERATORS = [

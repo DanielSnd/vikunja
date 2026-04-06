@@ -38,6 +38,9 @@
 							<FancyCheckbox v-model="activeColumns.priority">
 								{{ $t('task.attributes.priority') }}
 							</FancyCheckbox>
+							<FancyCheckbox v-model="activeColumns.status">
+								{{ $t('task.attributes.status') }}
+							</FancyCheckbox>
 							<FancyCheckbox v-model="activeColumns.labels">
 								{{ $t('task.attributes.labels') }}
 							</FancyCheckbox>
@@ -58,6 +61,9 @@
 							</FancyCheckbox>
 							<FancyCheckbox v-model="activeColumns.percentDone">
 								{{ $t('task.attributes.percentDone') }}
+							</FancyCheckbox>
+							<FancyCheckbox v-model="activeColumns.effort">
+								{{ $t('task.attributes.effort') }}
 							</FancyCheckbox>
 							<FancyCheckbox v-model="activeColumns.doneAt">
 								{{ $t('task.attributes.doneAt') }}
@@ -128,6 +134,13 @@
 											@click="sort('priority', $event)"
 										/>
 									</th>
+									<th v-if="activeColumns.status">
+										{{ $t('task.attributes.status') }}
+										<Sort
+											:order="sortBy.status"
+											@click="sort('status', $event)"
+										/>
+									</th>
 									<th v-if="activeColumns.labels">
 										{{ $t('task.attributes.labels') }}
 									</th>
@@ -163,6 +176,13 @@
 										<Sort
 											:order="sortBy.percent_done"
 											@click="sort('percent_done', $event)"
+										/>
+									</th>
+									<th v-if="activeColumns.effort">
+										{{ $t('task.attributes.effort') }}
+										<Sort
+											:order="sortBy.effort"
+											@click="sort('effort', $event)"
 										/>
 									</th>
 									<th v-if="activeColumns.doneAt">
@@ -234,6 +254,13 @@
 											:show-all="true"
 										/>
 									</td>
+									<td v-if="activeColumns.status">
+										<StatusLabel
+											:status="t.status"
+											:done="t.done"
+											:show-all="true"
+										/>
+									</td>
 									<td v-if="activeColumns.labels">
 										<Labels :labels="t.labels" />
 									</td>
@@ -263,6 +290,9 @@
 									/>
 									<td v-if="activeColumns.percentDone">
 										{{ t.percentDone * 100 }}%
+									</td>
+									<td v-if="activeColumns.effort">
+										{{ t.effort }}
 									</td>
 									<DateTableCell
 										v-if="activeColumns.doneAt"
@@ -307,6 +337,7 @@ import ProjectWrapper from '@/components/project/ProjectWrapper.vue'
 import Done from '@/components/misc/Done.vue'
 import User from '@/components/misc/User.vue'
 import PriorityLabel from '@/components/tasks/partials/PriorityLabel.vue'
+import StatusLabel from '@/components/tasks/partials/StatusLabel.vue'
 import Labels from '@/components/tasks/partials/Labels.vue'
 import TaskGlanceTooltip from '@/components/tasks/partials/TaskGlanceTooltip.vue'
 import DateTableCell from '@/components/tasks/partials/DateTableCell.vue'
@@ -341,12 +372,14 @@ const ACTIVE_COLUMNS_DEFAULT = {
 	project: false,
 	title: true,
 	priority: false,
+	status: false,
 	labels: true,
 	assignees: true,
 	dueDate: true,
 	startDate: false,
 	endDate: false,
 	percentDone: false,
+	effort: false,
 	created: false,
 	updated: false,
 	createdBy: false,

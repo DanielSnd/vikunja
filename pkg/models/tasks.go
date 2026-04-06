@@ -95,6 +95,10 @@ type Task struct {
 	HexColor string `xorm:"varchar(6) null" json:"hex_color" valid:"runelength(0|7)" maxLength:"7"`
 	// Determines how far a task is left from being done
 	PercentDone float64 `xorm:"DOUBLE null" json:"percent_done"`
+	// Determimnes the effort needed for the task
+	Effort float64 `xorm:"DOUBLE null" json:"effort"`
+	// The status of the task. Can be None, Started, Blocked, For Review, or Done.
+	Status int64 `xorm:"bigint null" json:"status"`
 
 	// The task identifier, based on the project identifier and the task's index
 	Identifier string `xorm:"-" json:"identifier"`
@@ -1144,10 +1148,12 @@ func (t *Task) updateSingleTask(s *xorm.Session, a web.Auth, fields []string) (e
 		"due_date",
 		"repeat_after",
 		"priority",
+		"status",
 		"start_date",
 		"end_date",
 		"hex_color",
 		"percent_done",
+		"effort",
 		"project_id",
 		"bucket_id",
 		"repeat_mode",
@@ -1190,6 +1196,9 @@ func (t *Task) updateSingleTask(s *xorm.Session, a web.Auth, fields []string) (e
 		if !fieldSet["priority"] {
 			t.Priority = ot.Priority
 		}
+		if !fieldSet["status"] {
+			t.Status = ot.Status
+		}
 		if !fieldSet["start_date"] {
 			t.StartDate = ot.StartDate
 		}
@@ -1201,6 +1210,9 @@ func (t *Task) updateSingleTask(s *xorm.Session, a web.Auth, fields []string) (e
 		}
 		if !fieldSet["percent_done"] {
 			t.PercentDone = ot.PercentDone
+		}
+		if !fieldSet["effort"] {
+			t.Effort = ot.Effort
 		}
 		if !fieldSet["project_id"] {
 			t.ProjectID = ot.ProjectID
@@ -1218,6 +1230,18 @@ func (t *Task) updateSingleTask(s *xorm.Session, a web.Auth, fields []string) (e
 
 	if err := validateRepeatAfter(t.RepeatAfter); err != nil {
 		return err
+	}
+
+	if t.Status != ot.Status {
+		// Status changed. // 0 UNSET 1 IN_PROGRESS 2 BLOCKED 3 REVIEw 4 DONE
+		if t.Status == 4 && t.Done == false {
+			t.Done = true
+			colsToUpdate = append(colsToUpdate, "done")
+		}
+		if ot.Status == 4 && t.Status < 4 && t.Done == true {
+			t.Done = false
+			colsToUpdate = append(colsToUpdate, "done")
+		}
 	}
 
 	// If the task is being moved between projects, make sure to move the bucket + index as well
@@ -1384,6 +1408,9 @@ func (t *Task) updateSingleTask(s *xorm.Session, a web.Auth, fields []string) (e
 	if t.Priority == 0 {
 		ot.Priority = 0
 	}
+	if t.Status == 0 {
+		ot.Status = 0
+	}
 	// Description
 	if t.Description == "" {
 		ot.Description = ""
@@ -1411,6 +1438,10 @@ func (t *Task) updateSingleTask(s *xorm.Session, a web.Auth, fields []string) (e
 	// Percent Done
 	if t.PercentDone == 0 {
 		ot.PercentDone = 0
+	}
+	// Effort
+	if t.Effort == 0 {
+		ot.Effort = 0
 	}
 	// Repeat from current date
 	if t.RepeatMode == TaskRepeatModeDefault {
@@ -1748,11 +1779,13 @@ func updateDone(oldTask *Task, newTask *Task) (updateDoneAt bool) {
 		}
 
 		newTask.DoneAt = time.Now()
+		newTask.Status = 4 // 0 UNSET 1 IN_PROGRESS 2 BLOCKED 3 REVIEw 4 DONE
 	}
 
 	// When unmarking a task as done, reset the timestamp
 	if oldTask.Done && !newTask.Done {
 		newTask.DoneAt = time.Time{}
+		newTask.Status = 0 // 0 UNSET 1 IN_PROGRESS 2 BLOCKED 3 REVIEw 4 DONE
 	}
 
 	return doneStatusChanged

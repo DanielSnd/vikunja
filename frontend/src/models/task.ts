@@ -1,4 +1,4 @@
-import {PRIORITIES, type Priority} from '@/constants/priorities'
+import {PRIORITIES, STATUSES, type Priority, type Status} from '@/constants/priorities'
 
 import type {ITask} from '@/modelTypes/ITask'
 import type {ILabel} from '@/modelTypes/ILabel'
@@ -64,6 +64,7 @@ export default class TaskModel extends AbstractModel<ITask> implements ITask {
 	done = false
 	doneAt: Date | null = null
 	priority: Priority = PRIORITIES.UNSET
+	status: Status = STATUSES.UNSET
 	labels: ILabel[] = []
 	assignees: IUser[] = []
 
@@ -77,6 +78,7 @@ export default class TaskModel extends AbstractModel<ITask> implements ITask {
 	parentTaskId: ITask['id'] = 0
 	hexColor = ''
 	percentDone = 0
+	effort = 0
 	relatedTasks:  Partial<Record<IRelationKind, ITask[]>> = {}
 	attachments: IAttachment[] = []
 	coverImageAttachmentId: IAttachment['id'] = null

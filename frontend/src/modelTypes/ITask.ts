@@ -1,4 +1,5 @@
 import type {Priority} from '@/constants/priorities'
+import type {Status} from '@/constants/priorities'
 
 import type {IAbstract} from './IAbstract'
 import type {IUser} from './IUser'
@@ -24,6 +25,7 @@ export interface ITask extends IAbstract {
 	done: boolean
 	doneAt: Date | null
 	priority: Priority
+	status: Status
 	labels: ILabel[]
 	assignees: IUser[]
 
@@ -37,6 +39,7 @@ export interface ITask extends IAbstract {
 	parentTaskId: ITask['id']
 	hexColor: string
 	percentDone: number
+	effort: number
 	relatedTasks: Partial<Record<IRelationKind, ITask[]>>
 	attachments: IAttachment[]
 	coverImageAttachmentId: IAttachment['id'] | null

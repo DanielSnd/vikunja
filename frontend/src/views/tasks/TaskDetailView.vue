@@ -121,6 +121,27 @@
 							appear
 						>
 							<div
+								v-if="activeFields.status"
+								class="column"
+							>
+								<!-- Status -->
+								<div class="detail-title">
+									<Icon icon="exclamation-circle" />
+									{{ $t('task.attributes.status') }}
+								</div>
+								<StatusSelect
+									:ref="e => setFieldRef('status', e)"
+									v-model="task.status"
+									:disabled="!canWrite"
+									@update:modelValue="setStatus"
+								/>
+							</div>
+						</CustomTransition>
+						<CustomTransition
+							name="flash-background"
+							appear
+						>
+							<div
 								v-if="activeFields.dueDate"
 								class="column"
 							>
@@ -167,6 +188,27 @@
 									v-model="task.percentDone"
 									:disabled="!canWrite"
 									@update:modelValue="setPercentDone"
+								/>
+							</div>
+						</CustomTransition>
+						<CustomTransition
+							name="flash-background"
+							appear
+						>
+							<div
+								v-if="activeFields.effort"
+								class="column"
+							>
+								<!-- Effort -->
+								<div class="detail-title">
+									<Icon icon="gear" />
+									{{ $t('task.attributes.effort') }}
+								</div>
+								<EffortSelect
+									:ref="e => setFieldRef('effort', e)"
+									v-model="task.effort"
+									:disabled="!canWrite"
+									@update:modelValue="setEffort"
 								/>
 							</div>
 						</CustomTransition>
@@ -476,11 +518,26 @@
 							{{ $t('task.detail.actions.priority') }}
 						</XButton>
 						<XButton
+							v-shortcut="'KeyS'"
+							variant="secondary"
+							icon="exclamation-circle"
+							@click="setFieldActive('status')"
+						>
+							{{ $t('task.detail.actions.status') }}
+						</XButton>
+						<XButton
 							variant="secondary"
 							icon="percent"
 							@click="setFieldActive('percentDone')"
 						>
 							{{ $t('task.detail.actions.percentDone') }}
+						</XButton>
+						<XButton
+							variant="secondary"
+							icon="gear"
+							@click="setFieldActive('effort')"
+						>
+							{{ $t('task.detail.actions.effort') }}
 						</XButton>
 						<XButton
 							v-shortcut="'KeyC'"
@@ -642,6 +699,7 @@ import type {IAttachment} from '@/modelTypes/IAttachment'
 import type {IProject} from '@/modelTypes/IProject'
 
 import {PRIORITIES, type Priority} from '@/constants/priorities'
+import {STATUSES, type Status} from '@/constants/priorities'
 import {PERMISSIONS} from '@/constants/permissions'
 
 import BaseButton from '@/components/base/BaseButton.vue'
@@ -659,7 +717,9 @@ import EditLabels from '@/components/tasks/partials/EditLabels.vue'
 import Heading from '@/components/tasks/partials/Heading.vue'
 import ProjectSearch from '@/components/tasks/partials/ProjectSearch.vue'
 import PercentDoneSelect from '@/components/tasks/partials/PercentDoneSelect.vue'
+import EffortSelect from '@/components/tasks/partials/EffortSelect.vue'
 import PrioritySelect from '@/components/tasks/partials/PrioritySelect.vue'
+import StatusSelect from '@/components/tasks/partials/StatusSelect.vue'
 import RelatedTasks from '@/components/tasks/partials/RelatedTasks.vue'
 import Reminders from '@/components/tasks/partials/Reminders.vue'
 import RepeatAfter from '@/components/tasks/partials/RepeatAfter.vue'
@@ -962,7 +1022,9 @@ type FieldType =
 	| 'labels'
 	| 'moveProject'
 	| 'percentDone'
+	| 'effort'
 	| 'priority'
+	| 'status'
 	| 'relatedTasks'
 	| 'reminders'
 	| 'repeatAfter'
@@ -977,7 +1039,9 @@ const activeFields: { [type in FieldType]: boolean } = reactive({
 	labels: false,
 	moveProject: false,
 	percentDone: false,
+	effort: false,
 	priority: false,
+	status: false,
 	relatedTasks: false,
 	reminders: false,
 	repeatAfter: false,
@@ -996,7 +1060,9 @@ function setActiveFields() {
 	activeFields.endDate = task.value.endDate !== null
 	activeFields.labels = task.value.labels.length > 0
 	activeFields.percentDone = task.value.percentDone > 0
+	activeFields.effort = task.value.effort > 0
 	activeFields.priority = task.value.priority !== PRIORITIES.UNSET
+	activeFields.status = task.value.status !== STATUSES.UNSET
 	activeFields.relatedTasks = Object.keys(task.value.relatedTasks).length > 0
 	activeFields.reminders = task.value.reminders.length > 0
 	activeFields.repeatAfter = task.value.repeatAfter?.amount > 0 || task.value.repeatMode !== TASK_REPEAT_MODES.REPEAT_MODE_DEFAULT
@@ -1012,7 +1078,9 @@ const activeFieldElements: { [id in FieldType]: HTMLElement | null } = reactive(
 	labels: null,
 	moveProject: null,
 	percentDone: null,
+	effort: null,
 	priority: null,
+	status: null,
 	relatedTasks: null,
 	reminders: null,
 	repeatAfter: null,
@@ -1155,10 +1223,28 @@ async function setPriority(priority: Priority) {
 	return saveTask(newTask)
 }
 
+async function setStatus(status: Status) {
+	const newTask: ITask = {
+		...task.value,
+		status,
+	}
+
+	return saveTask(newTask)
+}
+
 async function setPercentDone(percentDone: number) {
 	const newTask: ITask = {
 		...task.value,
 		percentDone,
+	}
+
+	return saveTask(newTask)
+}
+
+async function setEffort(effort: number) {
+	const newTask: ITask = {
+		...task.value,
+		effort,
 	}
 
 	return saveTask(newTask)

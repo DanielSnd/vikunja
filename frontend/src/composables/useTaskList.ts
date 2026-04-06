@@ -20,10 +20,12 @@ export interface SortBy {
 	done?: Order
 	title?: Order
 	priority?: Order
+	status?: Order
 	due_date?: Order
 	start_date?: Order
 	end_date?: Order
 	percent_done?: Order
+	effort?: Order
 	created?: Order
 	updated?: Order
 	done_at?: Order,
