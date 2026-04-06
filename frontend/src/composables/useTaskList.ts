@@ -80,8 +80,32 @@ export function useTaskList(
 	watch(() => params.value.filter, v => { filter.value = v || undefined })
 	watch(() => params.value.s, v => { s.value = v || undefined })
 
+	const sortQuery = useRouteQuery('sort')
 	const sortBy = ref({ ...sortByDefault })
-	
+
+	// Sync URL → sortBy
+	watch(sortQuery, v => {
+		if (!v) {
+			sortBy.value = { ...sortByDefault }
+			return
+		}
+		const [field, order] = (v as string).split(':')
+		if (field) {
+			sortBy.value = { [field]: order || 'asc' } as SortBy
+		}
+	}, {immediate: true})
+
+	// Sync sortBy → URL (omit default position sort)
+	watch(sortBy, v => {
+		const keys = Object.keys(v)
+		if (keys.length === 0 || (keys.length === 1 && 'position' in v)) {
+			sortQuery.value = undefined
+			return
+		}
+		const key = keys[0]
+		sortQuery.value = `${key}:${v[key as keyof SortBy]}`
+	}, {deep: true})
+
 	const allParams = computed(() => {
 		const loadParams = {...params.value}
 
