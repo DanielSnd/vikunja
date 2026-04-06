@@ -175,9 +175,7 @@ watch(
 	},
 )
 
-const isPositionSorting = computed(() => {
-	return Object.keys(sortByParam.value).length === 0 || (Object.keys(sortByParam.value).length === 1 && typeof sortByParam.value.position !== 'undefined')
-})
+const isPositionSorting = computed(() => 'position' in sortByParam.value)
 
 const firstNewPosition = computed(() => {
 	if (tasks.value.length === 0) {
