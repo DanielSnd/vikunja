@@ -251,6 +251,39 @@ func TestConvertWekanMultipleChecklists(t *testing.T) {
 	assert.Contains(t, desc, "Item B1")
 }
 
+func TestParseWekanUnsupportedFieldsIgnored(t *testing.T) {
+	// WeKan exports include fields we don't import (swimlanes, activities, rules, etc.).
+	// Verify they are silently ignored and parsing succeeds.
+	jsonWithExtras := `{
+		"_id": "board1",
+		"title": "Board With Extras",
+		"labels": [],
+		"lists": [{"_id": "list1", "title": "List", "sort": 1}],
+		"cards": [{"_id": "c1", "title": "Task", "listId": "list1", "sort": 1}],
+		"checklists": [],
+		"checklistItems": [],
+		"comments": [],
+		"swimlanes": [{"_id": "sw1", "title": "Default"}],
+		"activities": [{"_id": "act1", "activityType": "addComment"}],
+		"rules": [{"_id": "rule1", "title": "Auto move"}],
+		"triggers": [{"_id": "trig1", "activityType": "cardMove"}],
+		"actions": [{"_id": "action1", "actionType": "moveCard"}],
+		"customFields": [{"_id": "cf1", "name": "Priority", "type": "text"}]
+	}`
+
+	board, err := parseWekanJSON(bytes.NewReader([]byte(jsonWithExtras)))
+	require.NoError(t, err)
+	assert.Equal(t, "Board With Extras", board.Title)
+	require.Len(t, board.Cards, 1)
+	assert.Equal(t, "Task", board.Cards[0].Title)
+
+	// Conversion should also work fine
+	result := convertWekanToVikunja(board)
+	require.Len(t, result, 1)
+	assert.Equal(t, "Board With Extras", result[0].Title)
+	require.Len(t, result[0].Tasks, 1)
+}
+
 func TestConvertWekanFromFixtureFile(t *testing.T) {
 	file, err := os.Open("testdata_wekan_export.json")
 	require.NoError(t, err)
