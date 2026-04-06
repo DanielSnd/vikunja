@@ -74,7 +74,7 @@
 							<SingleTaskInProject
 								:ref="(el) => setTaskRef(el, index)"
 								:show-list-color="false"
-								:disabled="!canDragTasks || !isPositionSorting"
+								:disabled="!canDragTasks"
 								:can-mark-as-done="canWrite || isPseudoProject"
 								:the-task="t"
 								:all-tasks="allTasks"
