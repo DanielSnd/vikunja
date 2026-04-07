@@ -112,8 +112,10 @@ export const useKanbanStore = defineStore('kanban', () => {
 		task: ITask
 	}) {
 		const bucket = buckets.value[bucketIndex]
-		bucket.tasks[taskIndex] = task
-		buckets.value[bucketIndex] = bucket
+		buckets.value[bucketIndex] = {
+			...bucket,
+			tasks: bucket.tasks.map((existingTask, index) => index === taskIndex ? task : existingTask),
+		}
 	}
 
 	function setTaskInBucket(task: ITask) {
@@ -128,9 +130,10 @@ export const useKanbanStore = defineStore('kanban', () => {
 			for (const [t, taskInBucket] of buckets.value[b].tasks.entries()) {
 				if (taskInBucket.id === task.id) {
 					const bucket = buckets.value[b]
-					bucket.tasks[t] = task
-
-					buckets.value[b] = bucket
+					buckets.value[b] = {
+						...bucket,
+						tasks: bucket.tasks.map(existingTask => existingTask.id === task.id ? task : existingTask),
+					}
 
 					found = true
 					return

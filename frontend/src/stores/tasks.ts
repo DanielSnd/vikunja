@@ -184,6 +184,7 @@ export const useTaskStore = defineStore('task', () => {
 		const taskService = new TaskService()
 		try {
 			const updatedTask = await taskService.update(task)
+			tasks.value[updatedTask.id] = updatedTask
 			kanbanStore.ensureTaskIsInCorrectBucket(updatedTask)
 			lastUpdatedTask.value = updatedTask
 			return updatedTask

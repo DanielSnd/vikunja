@@ -24,7 +24,7 @@
 			:is-edit-enabled="canWrite"
 			:upload-callback="uploadCallback"
 			:placeholder="$t('task.description.placeholder')"
-			:show-save="false"
+			:show-save="true"
 			edit-shortcut="KeyE"
 			:enable-discard-shortcut="true"
 			:enable-mentions="true"
@@ -108,7 +108,7 @@ function buildContent(task: Pick<ITask, 'title' | 'description'>) {
 		return ''
 	}
 
-	return `<h1>${escapeHtml(title)}</h1>${description}`
+	return `<h1><strong>${escapeHtml(title)}</strong></h1>${description}`
 }
 
 function splitContent(value: string) {
@@ -259,9 +259,10 @@ async function uploadCallback(files: File[] | FileList): Promise<string[]> {
 		min-block-size: auto;
 	}
 
-	:deep(.ProseMirror > h1:first-child) {
-		font-size: 2rem;
+	:deep(.ProseMirror > h2:first-child) {
+		font-size: 1.75rem;
 		line-height: 1.2;
+		font-weight: 700;
 		margin-block-start: 0;
 	}
 }

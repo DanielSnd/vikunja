@@ -21,13 +21,7 @@
 				<Icon icon="arrow-left" />
 				{{ $t('task.detail.back') }}
 			</BaseButton>
-			<Heading
-				ref="heading"
-				:task="task"
-				:has-close="displayMode !== 'page'"
-				@close="$emit('close')"
-			/>
-			<nav
+			<h6
 				v-if="project?.id"
 				aria-label="Breadcrumb"
 				class="subtitle"
@@ -62,12 +56,33 @@
 				/>
 			</nav>
 
-			<ChecklistSummary :task="task" />
-
 			<!-- Content and buttons -->
 			<div class="columns mbs-2">
 				<!-- Content -->
 				<div class="column detail-content">
+					
+					<!-- Description -->
+					<div class="details content description">
+						<Description
+							:model-value="task"
+							:can-write="canWrite"
+							:attachment-upload="attachmentUpload"
+							@update:modelValue="Object.assign(task, $event)"
+						/>
+					</div>
+					
+					<!-- Reactions -->
+					<Reactions 
+						v-model="task.reactions" 
+						entity-kind="tasks"
+						:entity-id="task.id"
+						class="details"
+						:disabled="!canWrite"
+					/>
+
+
+					<ChecklistSummary :task="task" />
+
 					<div class="columns details">
 						<div
 							v-if="activeFields.assignees"
@@ -370,25 +385,6 @@
 							:creatable="!authStore.isLinkShareAuth"
 						/>
 					</div>
-
-					<!-- Description -->
-					<div class="details content description">
-						<Description
-							:model-value="task"
-							:can-write="canWrite"
-							:attachment-upload="attachmentUpload"
-							@update:modelValue="Object.assign(task, $event)"
-						/>
-					</div>
-					
-					<!-- Reactions -->
-					<Reactions 
-						v-model="task.reactions" 
-						entity-kind="tasks"
-						:entity-id="task.id"
-						class="details"
-						:disabled="!canWrite"
-					/>
 
 					<!-- Attachments -->
 					<div

@@ -934,6 +934,8 @@ watch(
 .ProseMirror {
 	padding: .5rem .5rem .5rem 0;
 	overflow-wrap: break-word;
+	font-size: 1.45rem;
+	min-height: 500px;
 
 	&:focus-within, &:focus {
 		box-shadow: none;

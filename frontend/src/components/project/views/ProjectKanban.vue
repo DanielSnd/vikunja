@@ -1408,7 +1408,7 @@ $filter-container-height: '1rem - #{$switch-view-height}';
 
 .task-item.is-selected .kanban-card {
 	box-shadow:
-		0 0 0 2px color-mix(in srgb, var(--primary) 45%, transparent),
+		0 0 0 12px color-mix(in srgb, var(--primary) 45%, transparent),
 		0 10px 24px rgba(0, 0, 0, 0.14);
 	transform: translateY(-2px);
 }
