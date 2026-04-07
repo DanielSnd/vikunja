@@ -69,10 +69,7 @@
 			<!-- Content and buttons -->
 			<div class="columns mbs-2">
 				<!-- Content -->
-				<div
-					:class="{'is-two-thirds': canWrite}"
-					class="column detail-content"
-				>
+				<div class="column detail-content">
 					<div class="columns details">
 						<div
 							v-if="activeFields.assignees"
@@ -470,13 +467,15 @@
 				<!-- Task Actions -->
 				<div
 					v-if="canWrite || isModal"
-					class="column is-one-third action-buttons d-print-none"
+					class="column action-buttons d-print-none"
 				>
 					<template v-if="canWrite">
 						<XButton
 							v-shortcut="'KeyT'"
+							v-tooltip="task.done ? $t('task.detail.undone') : $t('task.detail.done')"
 							:class="{'is-pending': !task.done}"
 							class="button--mark-done"
+							:aria-label="task.done ? $t('task.detail.undone') : $t('task.detail.done')"
 							icon="check-double"
 							variant="secondary"
 							@click="toggleTaskDone()"
@@ -491,7 +490,9 @@
 						/>
 						<XButton
 							v-shortcut="'KeyS'"
+							v-tooltip="task.isFavorite ? $t('task.detail.actions.unfavorite') : $t('task.detail.actions.favorite')"
 							variant="secondary"
+							:aria-label="task.isFavorite ? $t('task.detail.actions.unfavorite') : $t('task.detail.actions.favorite')"
 							:icon="task.isFavorite ? 'star' : ['far', 'star']"
 							@click="toggleFavorite"
 						>
@@ -504,7 +505,10 @@
 						
 						<XButton
 							v-shortcut="'KeyL'"
+							v-tooltip="$t('task.detail.actions.label')"
+							class="action-group-start"
 							variant="secondary"
+							:aria-label="$t('task.detail.actions.label')"
 							icon="tags"
 							@click="setFieldActive('labels')"
 						>
@@ -512,7 +516,9 @@
 						</XButton>
 						<XButton
 							v-shortcut="'KeyP'"
+							v-tooltip="$t('task.detail.actions.priority')"
 							variant="secondary"
+							:aria-label="$t('task.detail.actions.priority')"
 							icon="exclamation-circle"
 							@click="setFieldActive('priority')"
 						>
@@ -520,21 +526,27 @@
 						</XButton>
 						<XButton
 							v-shortcut="'KeyS'"
+							v-tooltip="$t('task.detail.actions.status')"
 							variant="secondary"
+							:aria-label="$t('task.detail.actions.status')"
 							icon="exclamation-circle"
 							@click="setFieldActive('status')"
 						>
 							{{ $t('task.detail.actions.status') }}
 						</XButton>
 						<XButton
+							v-tooltip="$t('task.detail.actions.percentDone')"
 							variant="secondary"
+							:aria-label="$t('task.detail.actions.percentDone')"
 							icon="percent"
 							@click="setFieldActive('percentDone')"
 						>
 							{{ $t('task.detail.actions.percentDone') }}
 						</XButton>
 						<XButton
+							v-tooltip="$t('task.detail.actions.effort')"
 							variant="secondary"
+							:aria-label="$t('task.detail.actions.effort')"
 							icon="gear"
 							@click="setFieldActive('effort')"
 						>
@@ -542,7 +554,9 @@
 						</XButton>
 						<XButton
 							v-shortcut="'KeyC'"
+							v-tooltip="$t('task.detail.actions.color')"
 							variant="secondary"
+							:aria-label="$t('task.detail.actions.color')"
 							icon="fill-drip"
 							:icon-color="color"
 							@click="setFieldActive('color')"
@@ -555,7 +569,10 @@
 						<XButton
 							v-shortcut="'KeyA'"
 							v-cy="'taskDetail.assign'"
+							v-tooltip="$t('task.detail.actions.assign')"
+							class="action-group-start"
 							variant="secondary"
+							:aria-label="$t('task.detail.actions.assign')"
 							icon="users"
 							@click="setFieldActive('assignees')"
 						>
@@ -563,7 +580,9 @@
 						</XButton>
 						<XButton
 							v-shortcut="'KeyF'"
+							v-tooltip="$t('task.detail.actions.attachments')"
 							variant="secondary"
+							:aria-label="$t('task.detail.actions.attachments')"
 							icon="paperclip"
 							@click="openAttachments()"
 						>
@@ -571,7 +590,9 @@
 						</XButton>
 						<XButton
 							v-shortcut="'KeyR'"
+							v-tooltip="$t('task.detail.actions.relatedTasks')"
 							variant="secondary"
+							:aria-label="$t('task.detail.actions.relatedTasks')"
 							icon="sitemap"
 							@click="setRelatedTasksActive()"
 						>
@@ -579,14 +600,18 @@
 						</XButton>
 						<XButton
 							v-shortcut="'KeyM'"
+							v-tooltip="$t('task.detail.actions.moveProject')"
 							variant="secondary"
+							:aria-label="$t('task.detail.actions.moveProject')"
 							icon="list"
 							@click="setFieldActive('moveProject')"
 						>
 							{{ $t('task.detail.actions.moveProject') }}
 						</XButton>
 						<XButton
+							v-tooltip="$t('task.detail.actions.duplicate')"
 							variant="secondary"
+							:aria-label="$t('task.detail.actions.duplicate')"
 							icon="copy"
 							@click="duplicateCurrentTask"
 						>
@@ -597,21 +622,28 @@
 
 						<XButton
 							v-shortcut="'KeyD'"
+							v-tooltip="$t('task.detail.actions.dueDate')"
+							class="action-group-start"
 							variant="secondary"
+							:aria-label="$t('task.detail.actions.dueDate')"
 							icon="calendar"
 							@click="setFieldActive('dueDate')"
 						>
 							{{ $t('task.detail.actions.dueDate') }}
 						</XButton>
 						<XButton
+							v-tooltip="$t('task.detail.actions.startDate')"
 							variant="secondary"
+							:aria-label="$t('task.detail.actions.startDate')"
 							icon="play"
 							@click="setFieldActive('startDate')"
 						>
 							{{ $t('task.detail.actions.startDate') }}
 						</XButton>
 						<XButton
+							v-tooltip="$t('task.detail.actions.endDate')"
 							variant="secondary"
+							:aria-label="$t('task.detail.actions.endDate')"
 							icon="stop"
 							@click="setFieldActive('endDate')"
 						>
@@ -619,39 +651,39 @@
 						</XButton>
 						<XButton
 							v-shortcut="reminderShortcut"
+							v-tooltip="$t('task.detail.actions.reminders')"
 							variant="secondary"
+							:aria-label="$t('task.detail.actions.reminders')"
 							:icon="['far', 'clock']"
 							@click="setFieldActive('reminders')"
 						>
 							{{ $t('task.detail.actions.reminders') }}
 						</XButton>
 						<XButton
+							v-tooltip="$t('task.detail.actions.repeatAfter')"
 							variant="secondary"
+							:aria-label="$t('task.detail.actions.repeatAfter')"
 							icon="history"
 							@click="setFieldActive('repeatAfter')"
 						>
 							{{ $t('task.detail.actions.repeatAfter') }}
 						</XButton>
 						<XButton
-							v-shortcut="deleteShortcut"
+							v-shortcut="'Shift+Delete'"
+							v-tooltip="$t('task.detail.actions.delete')"
 							icon="trash-alt"
 							:shadow="false"
 							class="is-danger is-outlined has-no-border"
+							:aria-label="$t('task.detail.actions.delete')"
 							@click="showDeleteModal = true"
 						>
 							{{ $t('task.detail.actions.delete') }}
 						</XButton>
 					</template>
-
-					<!-- Created / Updated [by] -->
-					<CreatedUpdated :task="task" />
 				</div>
 			</div>
 			<!-- Created / Updated [by] -->
-			<CreatedUpdated
-				v-if="!canWrite && !isModal"
-				:task="task"
-			/>
+			<CreatedUpdated :task="task" />
 		</div>
 
 		<BaseButton
@@ -1471,16 +1503,27 @@ h3 .button {
 }
 
 .action-buttons {
+	display: flex;
+	flex-direction: column;
+	gap: .5rem;
+	align-content: flex-start;
+	align-items: flex-start;
+
 	@media screen and (min-width: $tablet) {
 		position: sticky;
 		inset-block-start: $navbar-height + 1.5rem;
 		align-self: flex-start;
+		flex: 0 0 auto;
+		inline-size: auto;
 	}
 
 	.button {
-		inline-size: 100%;
-		margin-block-end: .5rem;
-		justify-content: left;
+		inline-size: 2.75rem;
+		block-size: 2.75rem;
+		min-block-size: 2.75rem;
+		padding: 0;
+		justify-content: center;
+		flex: 0 0 auto;
 
 		&.has-light-text {
 			color: var(--white);
@@ -1500,6 +1543,10 @@ h3 .button {
 				}
 			}
 		}
+	}
+
+	:deep(.button > span:not(.icon)) {
+		display: none;
 	}
 }
 
@@ -1526,12 +1573,11 @@ h3 .button {
 }
 
 .action-heading {
-	text-transform: uppercase;
-	color: var(--grey-700);
-	font-size: .75rem;
-	font-weight: 700;
-	margin: .5rem 0;
-	display: inline-block;
+	display: none;
+}
+
+.action-group-start {
+	margin-block-start: .75rem;
 }
 
 .scroll-to-comments-button {
