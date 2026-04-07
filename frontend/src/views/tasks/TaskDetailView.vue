@@ -24,9 +24,7 @@
 			<Heading
 				ref="heading"
 				:task="task"
-				:can-write="canWrite"
 				:has-close="displayMode !== 'page'"
-				@update:task="Object.assign(task, $event)"
 				@close="$emit('close')"
 			/>
 			<nav

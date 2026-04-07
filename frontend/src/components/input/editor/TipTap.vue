@@ -72,8 +72,8 @@
 			class="tiptap__editor"
 			:class="{'tiptap__editor-is-edit-enabled': isEditing}"
 			:editor="editor"
-			@dblclick="setEditIfApplicable()"
-			@click="focusIfEditing()"
+			@dblclick="handleEditorActivate('dblclick')"
+			@click="handleEditorActivate('click')"
 		/>
 
 		<input
@@ -86,7 +86,7 @@
 		>
 
 		<ul
-			v-if="bottomActions.length === 0 && !isEditing && isEditEnabled"
+			v-if="bottomActions.length === 0 && !isEditing && isEditEnabled && !hideEditButton"
 			class="tiptap__editor-actions d-print-none"
 		>
 			<li>
@@ -200,6 +200,8 @@ const props = withDefaults(defineProps<{
 	enableMentions?: boolean,
 	mentionProjectId?: number,
 	storageKey?: string,
+	hideEditButton?: boolean,
+	editTrigger?: 'click' | 'dblclick',
 }>(), {
 	uploadCallback: undefined,
 	isEditEnabled: true,
@@ -211,6 +213,8 @@ const props = withDefaults(defineProps<{
 	enableMentions: false,
 	mentionProjectId: 0,
 	storageKey: '',
+	hideEditButton: false,
+	editTrigger: 'dblclick',
 })
 
 const emit = defineEmits(['save'])
@@ -645,6 +649,15 @@ function setEditIfApplicable() {
 	if (isEditing.value) return
 
 	setEdit()
+}
+
+function handleEditorActivate(trigger: 'click' | 'dblclick') {
+	if (props.editTrigger === trigger) {
+		setEditIfApplicable()
+		return
+	}
+
+	focusIfEditing()
 }
 
 function setEdit(focus: boolean = true) {

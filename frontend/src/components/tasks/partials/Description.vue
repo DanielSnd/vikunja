@@ -1,10 +1,6 @@
 <template>
-	<div>
-		<h3>
-			<span class="icon is-grey">
-				<Icon icon="align-left" />
-			</span>
-			{{ $t('task.attributes.description') }}
+	<div class="task-content">
+		<div class="task-content__status">
 			<CustomTransition name="fade">
 				<span
 					v-if="loading && saving"
@@ -21,19 +17,21 @@
 					{{ $t('misc.saved') }}
 				</span>
 			</CustomTransition>
-		</h3>
+		</div>
 		<Editor
-			v-model="description"
+			v-model="content"
 			class="tiptap__task-description"
 			:is-edit-enabled="canWrite"
 			:upload-callback="uploadCallback"
 			:placeholder="$t('task.description.placeholder')"
-			:show-save="true"
+			:show-save="false"
 			edit-shortcut="KeyE"
 			:enable-discard-shortcut="true"
 			:enable-mentions="true"
 			:mention-project-id="modelValue.projectId"
-			:storage-key="descriptionStorageKey"
+			:storage-key="contentStorageKey"
+			:hide-edit-button="true"
+			edit-trigger="click"
 			@update:modelValue="saveWithDelay"
 			@save="save"
 		/>
@@ -41,15 +39,16 @@
 </template>
 
 <script setup lang="ts">
-import {ref, computed, watchEffect,  onBeforeUnmount} from 'vue'
+import {computed, onBeforeUnmount, ref, watch} from 'vue'
 import {onBeforeRouteLeave} from 'vue-router'
 
 import CustomTransition from '@/components/misc/CustomTransition.vue'
 import Editor from '@/components/input/AsyncEditor'
 
-import { clearEditorDraft } from '@/helpers/editorDraftStorage'
-import type { ITask } from '@/modelTypes/ITask'
-import { useTaskStore } from '@/stores/tasks'
+import {clearEditorDraft} from '@/helpers/editorDraftStorage'
+import {isEditorContentEmpty} from '@/helpers/editorContentEmpty'
+import type {ITask} from '@/modelTypes/ITask'
+import {useTaskStore} from '@/stores/tasks'
 
 export type AttachmentUploadFunction = (file: File, onSuccess: (attachmentUrl: string) => void) => Promise<string>
 
@@ -63,10 +62,20 @@ const emit = defineEmits<{
 	'update:modelValue': [value: ITask]
 }>()
 
-const description = ref<string>('')
+const content = ref('')
 const hasChanges = ref(false)
-watchEffect(() => {
-	description.value = props.modelValue.description
+watch(() => [props.modelValue.id, props.modelValue.title, props.modelValue.description], () => {
+	if (hasChanges.value) {
+		return
+	}
+
+	content.value = buildContent({
+		title: props.modelValue.title,
+		description: props.modelValue.description,
+	})
+}, {immediate: true})
+
+watch(() => props.modelValue.id, () => {
 	hasChanges.value = false
 })
 
@@ -80,10 +89,80 @@ const loading = computed(() => taskStore.isLoading)
 
 const changeTimeout = ref<ReturnType<typeof setTimeout> | null>(null)
 
-const descriptionStorageKey = computed(() => `task-description-${props.modelValue.id}`)
+const contentStorageKey = computed(() => `task-content-${props.modelValue.id}`)
+
+function escapeHtml(value: string) {
+	return value
+		.replaceAll('&', '&amp;')
+		.replaceAll('<', '&lt;')
+		.replaceAll('>', '&gt;')
+		.replaceAll('"', '&quot;')
+		.replaceAll('\'', '&#39;')
+}
+
+function buildContent(task: Pick<ITask, 'title' | 'description'>) {
+	const title = task.title.trim()
+	const description = isEditorContentEmpty(task.description) ? '' : task.description
+
+	if (title === '' && description === '') {
+		return ''
+	}
+
+	return `<h1>${escapeHtml(title)}</h1>${description}`
+}
+
+function splitContent(value: string) {
+	if (isEditorContentEmpty(value)) {
+		return {
+			title: '',
+			description: '',
+		}
+	}
+
+	const parser = new DOMParser()
+	const doc = parser.parseFromString(`<div>${value}</div>`, 'text/html')
+	const root = doc.body.firstElementChild
+
+	if (!root) {
+		return {
+			title: '',
+			description: '',
+		}
+	}
+
+	const nodes = Array.from(root.childNodes).filter(node => {
+		if (node.nodeType === Node.TEXT_NODE) {
+			return node.textContent?.trim() !== ''
+		}
+
+		return (node.textContent?.trim() ?? '') !== '' || (node instanceof HTMLElement && node.querySelector('img') !== null)
+	})
+
+	if (nodes.length === 0) {
+		return {
+			title: '',
+			description: '',
+		}
+	}
+
+	const [titleNode, ...descriptionNodes] = nodes
+	const title = titleNode.textContent?.split('\n')[0]?.trim() ?? ''
+
+	const descriptionWrapper = doc.createElement('div')
+	descriptionNodes.forEach(node => {
+		descriptionWrapper.appendChild(node.cloneNode(true))
+	})
+
+	const description = descriptionWrapper.innerHTML.trim()
+
+	return {
+		title,
+		description: isEditorContentEmpty(description) ? '' : description,
+	}
+}
 
 async function saveWithDelay() {
-	if (description.value === props.modelValue.description) {
+	if (content.value === buildContent(props.modelValue)) {
 		hasChanges.value = false
 		if (changeTimeout.value !== null) {
 			clearTimeout(changeTimeout.value)
@@ -123,14 +202,18 @@ async function save() {
 	saving.value = true
 
 	try {
+		const {title, description} = splitContent(content.value)
+
 		const updated = await taskStore.update({
 			...props.modelValue,
-			description: description.value,
+			title,
+			description,
 		})
 		emit('update:modelValue', updated)
 
 		// Clear draft from localStorage when saved successfully
-		clearEditorDraft(descriptionStorageKey.value)
+		clearEditorDraft(contentStorageKey.value)
+		content.value = buildContent(updated)
 
 		saved.value = true
 		setTimeout(() => {
@@ -165,9 +248,21 @@ async function uploadCallback(files: File[] | FileList): Promise<string[]> {
 </script>
 
 <style lang="scss" scoped>
+.task-content__status {
+	display: flex;
+	justify-content: flex-end;
+	min-block-size: 1.5rem;
+}
+
 .tiptap__task-description {
-	// The exact amount of pixels we need to make the description icon align with the buttons and the form inside the editor.
-	// The icon is not exactly the same length on all sides so we need to hack our way around it.
-	margin-inline-start: 4px;
+	:deep(.tiptap__editor) {
+		min-block-size: auto;
+	}
+
+	:deep(.ProseMirror > h1:first-child) {
+		font-size: 2rem;
+		line-height: 1.2;
+		margin-block-start: 0;
+	}
 }
 </style>
