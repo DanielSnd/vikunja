@@ -250,6 +250,7 @@
 												@touchmove.passive="onHandleTouchMove"
 											/>
 											<KanbanCard
+												:key="`${task.id}-${task.updated?.getTime?.() ?? 0}-${task.title}`"
 												class="kanban-card"
 												:task="task"
 												:loading="taskUpdating[task.id] ?? false"
@@ -382,9 +383,9 @@ const DRAG_OPTIONS = {
 } as const
 
 const MIN_SCROLL_HEIGHT_PERCENT = 0.25
-const DEFAULT_DETAIL_SIDEBAR_WIDTH = 520
-const MIN_DETAIL_SIDEBAR_WIDTH = 320
-const MAX_DETAIL_SIDEBAR_WIDTH = 860
+const DEFAULT_DETAIL_SIDEBAR_WIDTH = 720
+const MIN_DETAIL_SIDEBAR_WIDTH = 420
+const MAX_DETAIL_SIDEBAR_WIDTH = 960
 
 const {t} = useI18n({useScope: 'global'})
 

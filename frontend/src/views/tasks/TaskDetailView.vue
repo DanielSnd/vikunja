@@ -59,7 +59,7 @@
 			<!-- Content and buttons -->
 			<div class="columns mbs-2">
 				<!-- Content -->
-				<div class="column detail-content">
+				<div class="column detail-content" style="padding: 0px 30px 0px 30px; background-color: #3344; border-radius: 14px;">
 					
 					<!-- Description -->
 					<div class="details content description">
@@ -520,10 +520,10 @@
 							{{ task.status != STATUSES.REVIEW ? $t('task.detail.review') : $t('task.detail.started') }}
 						</XButton>
 						<XButton
-							v-tooltip="task.status != STATUSES.BLOCKED ? $t('task.detail.review') : $t('task.detail.started')"
+							v-tooltip="task.status != STATUSES.BLOCKED ? $t('task.detail.blocked') : $t('task.detail.started')"
 							:class="{'is-pending': task.status != STATUSES.BLOCKED}"
 							class="button--mark-blocked"
-							:aria-label="task.status != STATUSES.BLOCKED ? $t('task.detail.review') : $t('task.detail.started')"
+							:aria-label="task.status != STATUSES.BLOCKED ? $t('task.detail.blocked') : $t('task.detail.started')"
 							icon="circle-exclamation"
 							variant="secondary"
 							@click="toggleTaskBlocked()"
