@@ -59,7 +59,7 @@
 			<!-- Content and buttons -->
 			<div class="columns mbs-2">
 				<!-- Content -->
-				<div class="column detail-content" style="padding: 0px 30px 0px 30px; background-color: #3344; border-radius: 14px;">
+				<div class="column detail-content" style="padding: 0px 30px 0px 30px; background-color: #3344; border-radius: 14px; min-height:500px;">
 					
 					<!-- Description -->
 					<div class="details content description">

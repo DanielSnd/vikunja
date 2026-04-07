@@ -72,8 +72,8 @@
 			class="tiptap__editor"
 			:class="{'tiptap__editor-is-edit-enabled': isEditing}"
 			:editor="editor"
-			@dblclick="handleEditorActivate('dblclick')"
-			@click="handleEditorActivate('click')"
+			@dblclick="handleEditorActivate($event, 'dblclick')"
+			@click="handleEditorActivate($event, 'click')"
 		/>
 
 		<input
@@ -173,6 +173,7 @@ import suggestionSetup from './suggestion'
 import {EmojiExtension} from './emoji/emojiExtension'
 import mentionSuggestionSetup from './mention/mentionSuggestion'
 import MentionUser from './mention/MentionUser.vue'
+import {shouldIgnoreEditorActivation} from './shouldIgnoreEditorActivation'
 
 import {common, createLowlight} from 'lowlight'
 
@@ -651,7 +652,11 @@ function setEditIfApplicable() {
 	setEdit()
 }
 
-function handleEditorActivate(trigger: 'click' | 'dblclick') {
+function handleEditorActivate(event: MouseEvent, trigger: 'click' | 'dblclick') {
+	if (!isEditing.value && shouldIgnoreEditorActivation(event.target)) {
+		return
+	}
+
 	if (props.editTrigger === trigger) {
 		setEditIfApplicable()
 		return
@@ -935,7 +940,6 @@ watch(
 	padding: .5rem .5rem .5rem 0;
 	overflow-wrap: break-word;
 	font-size: 1.45rem;
-	min-height: 500px;
 
 	&:focus-within, &:focus {
 		box-shadow: none;
