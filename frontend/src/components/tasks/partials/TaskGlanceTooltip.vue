@@ -199,6 +199,7 @@ onUnmounted(() => {
 <style lang="scss" scoped>
 .task-glance-trigger {
 	display: inline;
+	padding-left: 8px;
 }
 
 .task-glance-tooltip {

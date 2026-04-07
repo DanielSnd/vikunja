@@ -2,9 +2,9 @@
 	<span
 		v-if="!done && (showAll || effort >= minimumEffort)"
 		:class="{
-			'negligible': effort <= 3,
-			'not-so-high': effort > 3 && effort < 7,
-			'high-effort': effort >= 7
+			'negligible': effort <= 5,
+			'not-so-high': effort > 5 && effort < 8,
+			'high-effort': effort >= 8
 		}"
 		class="effort-label"
 	>
@@ -35,8 +35,8 @@ const minimumEffort = computed(() => {
 </script>
 
 <style lang="scss" scoped>
-.high-priority {
-	color: var(--warning);
+.high-effort {
+	color: var(--danger);
 	inline-size: auto !important; // To override the width set in tasks
 	background-color: #434350;
 	padding: 2px 8px;
@@ -44,7 +44,7 @@ const minimumEffort = computed(() => {
 }
 
 .not-so-high {
-	color: var(--danger);
+	color: var(--warning);
 	background-color: #434350;
 	padding: 2px 8px;
 	border-radius: 8px;

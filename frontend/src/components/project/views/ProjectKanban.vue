@@ -79,17 +79,25 @@
 									>
 										<Icon icon="check-double" />
 									</span>
-									<h2
-										class="title input"
-										:contenteditable="(bucketTitleEditable && canWrite && !collapsedBuckets[bucket.id]) ? true : undefined"
-										:spellcheck="false"
-										@keydown.enter.prevent.stop="!$event.isComposing && ($event.target as HTMLElement).blur()"
-										@keydown.esc.prevent.stop="!$event.isComposing && ($event.target as HTMLElement).blur()"
-										@blur="saveBucketTitle(bucket.id, ($event.target as HTMLElement).textContent as string)"
-										@click="focusBucketTitle"
-									>
-										{{ bucket.title }}
-									</h2>
+									<div class="title-wrapper">
+										<h2
+											class="title input"
+											:contenteditable="(bucketTitleEditable && canWrite && !collapsedBuckets[bucket.id]) ? true : undefined"
+											:spellcheck="false"
+											@keydown.enter.prevent.stop="!$event.isComposing && ($event.target as HTMLElement).blur()"
+											@keydown.esc.prevent.stop="!$event.isComposing && ($event.target as HTMLElement).blur()"
+											@blur="saveBucketTitle(bucket.id, ($event.target as HTMLElement).textContent as string)"
+											@click="focusBucketTitle"
+										>
+											{{ bucket.title }}
+										</h2>
+										<span
+											class="effort-summary"
+											:title="`${bucketEffortSummary[bucket.id]?.remaining ?? 0} / ${bucketEffortSummary[bucket.id]?.total ?? 0}`"
+										>
+											{{ bucketEffortSummary[bucket.id]?.remaining ?? 0 }} / {{ bucketEffortSummary[bucket.id]?.total ?? 0 }}
+										</span>
+									</div>
 									<span
 										v-if="bucket.limit > 0 || alwaysShowBucketTaskCount"
 										:class="{'is-max': bucket.limit > 0 && bucket.count >= bucket.limit}"
@@ -327,6 +335,7 @@ import draggable from 'zhyswan-vuedraggable'
 import {klona} from 'klona/lite'
 
 import {PERMISSIONS as Permissions} from '@/constants/permissions'
+import {STATUSES} from '@/constants/priorities'
 import BucketModel from '@/models/bucket'
 
 import type {IBucket} from '@/modelTypes/IBucket'
@@ -610,6 +619,16 @@ function onHandleTouchMove(e: TouchEvent) {
 const buckets = computed(() => kanbanStore.buckets)
 const loading = computed(() => kanbanStore.isLoading)
 const projectIdWithFallback = computed<number>(() => project.value?.id || projectId.value)
+const bucketEffortSummary = computed(() => {
+	return Object.fromEntries(buckets.value.map(bucket => {
+		const total = bucket.tasks.reduce((sum, task) => sum + (Number(task.effort) || 0), 0)
+		const remaining = bucket.tasks.reduce((sum, task) => sum + (Number(task.effort) || 0), 0) - bucket.tasks.reduce((sum, task) => {
+			return isTaskCompleted(task) ? sum : sum + (Number(task.effort) || 0)
+		}, 0)
+
+		return [bucket.id, {remaining, total}]
+	}))
+})
 
 const taskLoading = computed(() => taskStore.isLoading || taskPositionService.value.loading)
 
@@ -1036,6 +1055,10 @@ function unCollapseBucket(bucket: IBucket) {
 	collapsedBuckets.value[bucket.id] = false
 	saveCollapsedBucketState(projectIdWithFallback.value, collapsedBuckets.value)
 }
+
+function isTaskCompleted(task: ITask) {
+	return task.done || task.status === STATUSES.DONE
+}
 </script>
 
 <style lang="scss" scoped>
@@ -1280,6 +1303,25 @@ $filter-container-height: '1rem - #{$switch-view-height}';
 			padding: .4rem .5rem;
 			display: inline-block;
 			cursor: pointer;
+		}
+
+		.title-wrapper {
+			display: flex;
+			align-items: baseline;
+			min-inline-size: 0;
+			gap: .5rem;
+			flex: 1 1 auto;
+			padding-right:20px;
+		}
+
+		.effort-summary {
+			font-size: 1.15rem;
+			color: var(--text-light);
+			white-space: nowrap;
+			flex-shrink: 0;
+			background: #222;
+			padding: 8px;
+			border-radius: 12px;
 		}
 	}
 

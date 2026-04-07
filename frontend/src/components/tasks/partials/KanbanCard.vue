@@ -531,7 +531,7 @@ $task-background: var(--white);
 	padding: 0.125rem 0.375rem;
 	// background: var(--grey-200);
 	border-radius: calc($radius / 1.5);
-	font-size: 0.75rem;
+	font-size: 1.0rem;
 	color: var(--grey-600);
 	font-weight: 500;
 	flex-shrink: 0;
@@ -620,12 +620,6 @@ $task-background: var(--white);
 .has-custom-background-color {
 	color: hsl(215, 27.9%, 16.9%);
 
-	.badge,
-	.task-id-badge {
-		background: rgba(255, 255, 255, 0.2);
-		color: hsl(215, 27.9%, 16.9%);
-	}
-
 	.project-badge {
 		background: rgba(255, 255, 255, 0.25);
 		color: hsl(215, 27.9%, 16.9%);
@@ -648,11 +642,6 @@ $task-background: var(--white);
 		border-top-color: rgba(255, 255, 255, 0.1);
 	}
 
-	.badge,
-	.task-id-badge {
-		background: rgba(0, 0, 0, 0.2);
-		color: var(--white);
-	}
 
 	.project-badge {
 		background: rgba(0, 0, 0, 0.25);

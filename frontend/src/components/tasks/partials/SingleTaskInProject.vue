@@ -138,12 +138,6 @@
 						<Icon icon="paperclip" />
 					</span>
 					<span
-						v-if="!isEditorContentEmpty(task.description)"
-						class="project-task-icon is-mirrored-rtl"
-					>
-						<Icon icon="align-left" />
-					</span>
-					<span
 						v-if="isRepeating"
 						class="project-task-icon"
 					>
