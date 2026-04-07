@@ -40,7 +40,9 @@
 				</div>
 
 				<!-- Task Title -->
-				<h3 class="card-title">{{ task.title }}</h3>
+				<h3 class="card-title">
+					{{ task.title }}
+				</h3>
 				
 				<!-- Labels -->
 				<Labels
@@ -201,12 +203,15 @@ const props = withDefaults(defineProps<{
 	task: ITask,
 	projectId: IProject['id'],
 	loading?: boolean,
+	openBehavior?: 'route' | 'emit',
 }>(), {
 	loading: false,
+	openBehavior: 'route',
 })
 
 const emit = defineEmits<{
-	'taskCompletedRecurring': [task: ITask]
+	'taskCompletedRecurring': [task: ITask],
+	'open': [task: ITask],
 }>()
 
 const router = useRouter()
@@ -225,8 +230,6 @@ const projectTitle = computed(() => {
 	const project = projectStore.projects[props.task.projectId]
 	return project?.title
 })
-
-const showTaskPosition = computed(() => window.DEBUG_TASK_POSITION)
 
 const {now} = useGlobalNow()
 const isOverdue = computed(() => (
@@ -261,6 +264,11 @@ async function toggleTaskDone(task: ITask) {
 }
 
 function openTaskDetail() {
+	if (props.openBehavior === 'emit') {
+		emit('open', props.task)
+		return
+	}
+
 	router.push({
 		name: 'task.detail',
 		params: {id: props.task.id},

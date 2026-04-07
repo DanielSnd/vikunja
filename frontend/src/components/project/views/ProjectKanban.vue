@@ -18,10 +18,37 @@
 		</template>
 
 		<template #default>
-			<div class="kanban-view">
+			<div
+				class="kanban-view"
+				:class="{'has-open-task': selectedTaskId !== null}"
+			>
+				<aside
+					class="kanban-detail-sidebar"
+					:class="{'is-open': selectedTaskId !== null}"
+					:style="sidebarStyle"
+				>
+					<TaskDetailView
+						v-if="selectedTaskId !== null"
+						:task-id="selectedTaskId"
+						display-mode="sidebar"
+						@close="closeTaskDetails"
+						@taskDeleted="closeTaskDetails"
+						@taskDuplicated="openTask"
+					/>
+				</aside>
+				<div
+					v-if="selectedTaskId !== null && !isMobile"
+					class="kanban-detail-resizer"
+					:class="{'is-resizing': isResizingSidebar}"
+					role="separator"
+					aria-orientation="vertical"
+					aria-label="Resize task details sidebar"
+					@mousedown="startSidebarResize"
+				/>
+
 				<div
 					:class="{ 'is-loading': loading && !oneTaskUpdating}"
-					class="kanban kanban-bucket-container loader-container"
+					class="kanban kanban-content kanban-bucket-container loader-container"
 				>
 					<draggable
 						v-bind="DRAG_OPTIONS"
@@ -80,8 +107,7 @@
 										variant="secondary"
 										:disabled="bucket.limit > 0 && bucket.count >= bucket.limit"
 										@click="toggleShowNewTaskInput(bucket.id)"
-									> 
-									</XButton>
+									/>
 									<Dropdown
 										v-if="canWrite && !collapsedBuckets[bucket.id]"
 										class="is-right options"
@@ -211,25 +237,28 @@
 									</template>
 
 									<template #item="{element: task}">
-									<div
-										class="task-item card-item"
-										:data-task-id="task.id"
-									>
-										<span
-										v-if="canWrite && isTouchDevice"
-										class="handle"
-										@click="openTask(task)"
-										@touchstart.passive="onHandleTouchStart"
-										@touchmove.passive="onHandleTouchMove"
-										/>
-										<KanbanCard
-										class="kanban-card"
-										:task="task"
-										:loading="taskUpdating[task.id] ?? false"
-										:project-id="projectId"
-										@taskCompletedRecurring="handleRecurringTaskCompletion"
-										/>
-									</div>
+										<div
+											class="task-item card-item"
+											:class="{'is-selected': selectedTaskId === task.id}"
+											:data-task-id="task.id"
+										>
+											<span
+												v-if="canWrite && isTouchDevice"
+												class="handle"
+												@click="openTask(task)"
+												@touchstart.passive="onHandleTouchStart"
+												@touchmove.passive="onHandleTouchMove"
+											/>
+											<KanbanCard
+												class="kanban-card"
+												:task="task"
+												:loading="taskUpdating[task.id] ?? false"
+												:project-id="projectId"
+												open-behavior="emit"
+												@open="openTask"
+												@taskCompletedRecurring="handleRecurringTaskCompletion"
+											/>
+										</div>
 									</template>
 								</draggable>
 							</div>
@@ -288,9 +317,10 @@
 </template>
 
 <script setup lang="ts">
-import {computed, nextTick, ref, watch, toRef} from 'vue'
-import {useRouter} from 'vue-router'
+import {computed, nextTick, onUnmounted, ref, watch, toRef} from 'vue'
+import {useRoute, useRouter} from 'vue-router'
 import {useRouteQuery} from '@vueuse/router'
+import {useMediaQuery} from '@vueuse/core'
 import {useI18n} from 'vue-i18n'
 import draggable from 'zhyswan-vuedraggable'
 import {klona} from 'klona/lite'
@@ -309,6 +339,7 @@ import {useAuthStore} from '@/stores/auth'
 import ProjectWrapper from '@/components/project/ProjectWrapper.vue'
 import FilterPopup from '@/components/project/partials/FilterPopup.vue'
 import KanbanCard from '@/components/tasks/partials/KanbanCard.vue'
+import TaskDetailView from '@/views/tasks/TaskDetailView.vue'
 import Dropdown from '@/components/misc/Dropdown.vue'
 import DropdownItem from '@/components/misc/DropdownItem.vue'
 
@@ -351,6 +382,9 @@ const DRAG_OPTIONS = {
 } as const
 
 const MIN_SCROLL_HEIGHT_PERCENT = 0.25
+const DEFAULT_DETAIL_SIDEBAR_WIDTH = 520
+const MIN_DETAIL_SIDEBAR_WIDTH = 320
+const MAX_DETAIL_SIDEBAR_WIDTH = 860
 
 const {t} = useI18n({useScope: 'global'})
 
@@ -453,15 +487,108 @@ if (typeof window !== 'undefined') {
 const taskDragHandle = computed(() => isTouchDevice.value ? '.handle' : undefined)
 
 const router = useRouter()
+const route = useRoute()
 const touchStartY = ref(0)
+const selectedTaskIdQuery = useRouteQuery('taskId')
+const isMobile = useMediaQuery('(max-width: 768px)')
+const detailSidebarWidth = ref(DEFAULT_DETAIL_SIDEBAR_WIDTH)
+const isResizingSidebar = ref(false)
+
+const selectedTaskId = computed<number | null>(() => {
+	const value = selectedTaskIdQuery.value
+	if (value === undefined || value === null || value === '') {
+		return null
+	}
+
+	const parsed = Number(value)
+	return Number.isNaN(parsed) ? null : parsed
+})
+
+const sidebarStyle = computed(() => {
+	if (selectedTaskId.value === null) {
+		return undefined
+	}
+
+	if (isMobile.value) {
+		return undefined
+	}
+
+	return {
+		'--kanban-detail-width': `${detailSidebarWidth.value}px`,
+	}
+})
 
 function openTask(task: ITask) {
-	router.push({
-		name: 'task.detail',
-		params: {id: task.id},
-		state: {backdropView: router.currentRoute.value.fullPath},
+	if (selectedTaskId.value === task.id) {
+		closeTaskDetails()
+		return
+	}
+
+	router.replace({
+		name: route.name as string,
+		params: route.params,
+		query: {
+			...route.query,
+			taskId: String(task.id),
+		},
 	})
 }
+
+function closeTaskDetails() {
+	const {taskId, ...query} = route.query
+	void taskId
+
+	router.replace({
+		name: route.name as string,
+		params: route.params,
+		query,
+	})
+}
+
+function clampSidebarWidth(width: number): number {
+	return Math.min(MAX_DETAIL_SIDEBAR_WIDTH, Math.max(MIN_DETAIL_SIDEBAR_WIDTH, width))
+}
+
+function handleSidebarResize(event: MouseEvent) {
+	if (!isResizingSidebar.value) {
+		return
+	}
+
+	const viewportWidth = window.innerWidth
+	const proposedWidth = document.dir === 'rtl'
+		? event.clientX
+		: viewportWidth - event.clientX
+	detailSidebarWidth.value = clampSidebarWidth(proposedWidth)
+}
+
+function stopSidebarResize() {
+	if (!isResizingSidebar.value) {
+		return
+	}
+
+	isResizingSidebar.value = false
+	document.removeEventListener('mousemove', handleSidebarResize)
+	document.removeEventListener('mouseup', stopSidebarResize)
+	document.body.style.userSelect = ''
+	document.body.style.cursor = ''
+}
+
+function startSidebarResize(event: MouseEvent) {
+	if (isMobile.value) {
+		return
+	}
+
+	event.preventDefault()
+	isResizingSidebar.value = true
+	document.addEventListener('mousemove', handleSidebarResize)
+	document.addEventListener('mouseup', stopSidebarResize)
+	document.body.style.userSelect = 'none'
+	document.body.style.cursor = 'col-resize'
+}
+
+onUnmounted(() => {
+	stopSidebarResize()
+})
 
 function onHandleTouchStart(e: TouchEvent) {
 	touchStartY.value = e.touches[0].clientY
@@ -1176,6 +1303,89 @@ $filter-container-height: '1rem - #{$switch-view-height}';
 				background-color: var(--white);
 			}
 		}
+		}
+}
+
+.kanban-view {
+	display: flex;
+	gap: 1rem;
+	min-inline-size: 0;
+	align-items: flex-start;
+
+	@media screen and (max-width: $tablet) {
+		flex-direction: column;
+	}
+}
+
+.kanban-detail-sidebar {
+	flex: 0 0 0;
+	inline-size: 0;
+	min-inline-size: 0;
+	opacity: 0;
+	overflow: hidden;
+	border-radius: $radius;
+	background: var(--site-background);
+	border: 1px solid transparent;
+	transition:
+		flex-basis .25s ease,
+		inline-size .25s ease,
+		opacity .2s ease,
+		border-color .2s ease;
+
+	&.is-open {
+		flex-basis: var(--kanban-detail-width, min(34rem, 36vw));
+		inline-size: var(--kanban-detail-width, min(34rem, 36vw));
+		opacity: 1;
+		overflow-y: auto;
+		block-size: calc(#{$crazy-height-calculation});
+		border-color: var(--grey-200);
+		box-shadow: var(--shadow-sm);
+	}
+
+	@media screen and (max-width: $desktop) {
+		&.is-open {
+			flex-basis: min(30rem, 42vw);
+			inline-size: min(30rem, 42vw);
+		}
+	}
+
+	@media screen and (max-width: $tablet) {
+		inline-size: 100%;
+
+		&.is-open {
+			flex-basis: auto;
+			inline-size: 100%;
+			block-size: auto;
+			max-block-size: 70vh;
+		}
+	}
+}
+
+.kanban-content {
+	flex: 1 1 auto;
+	min-inline-size: 0;
+}
+
+.kanban-detail-resizer {
+	flex: 0 0 0.75rem;
+	align-self: stretch;
+	margin-inline: -0.25rem;
+	cursor: col-resize;
+	position: relative;
+
+	&::before {
+		content: '';
+		position: absolute;
+		inset-block: 0;
+		inset-inline-start: calc(50% - 1px);
+		inline-size: 2px;
+		background: var(--grey-200);
+		transition: background-color $transition-duration ease;
+	}
+
+	&:hover::before,
+	&.is-resizing::before {
+		background: var(--primary);
 	}
 }
 
@@ -1194,5 +1404,12 @@ $filter-container-height: '1rem - #{$switch-view-height}';
 .move-card-leave-to,
 .move-card-leave-active {
 	display: none;
+}
+
+.task-item.is-selected .kanban-card {
+	box-shadow:
+		0 0 0 2px color-mix(in srgb, var(--primary) 45%, transparent),
+		0 10px 24px rgba(0, 0, 0, 0.14);
+	transform: translateY(-2px);
 }
 </style>

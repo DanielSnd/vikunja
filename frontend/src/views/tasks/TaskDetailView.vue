@@ -5,6 +5,7 @@
 		:class="{
 			'is-loading': taskService.loading || !visible,
 			'is-modal': isModal,
+			'is-sidebar': isSidebar,
 		}"
 	>
 		<!-- Removing everything until the task is loaded to prevent empty initialization of other components -->
@@ -13,7 +14,7 @@
 			class="task-view"
 		>
 			<BaseButton
-				v-if="!isModal"
+				v-if="displayMode === 'page'"
 				class="back-button mbs-2"
 				@click="lastProject ? router.back() : router.push(projectRoute)"
 			>
@@ -24,7 +25,7 @@
 				ref="heading"
 				:task="task"
 				:can-write="canWrite"
-				:has-close="isModal"
+				:has-close="displayMode !== 'page'"
 				@update:task="Object.assign(task, $event)"
 				@close="$emit('close')"
 			/>
@@ -752,10 +753,13 @@ import type {Action as MessageAction} from '@/message'
 const props = defineProps<{
 	taskId: ITask['id'],
 	backdropView?: RouteLocation['fullPath'],
+	displayMode?: 'page' | 'modal' | 'sidebar',
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
 	'close': [],
+	'taskDeleted': [task: ITask],
+	'taskDuplicated': [task: ITask],
 }>()
 
 const router = useRouter()
@@ -870,7 +874,9 @@ const color = computed(() => {
 	return color
 })
 
-const isModal = computed(() => Boolean(props.backdropView))
+const displayMode = computed(() => props.displayMode ?? (props.backdropView ? 'modal' : 'page'))
+const isModal = computed(() => displayMode.value === 'modal')
+const isSidebar = computed(() => displayMode.value === 'sidebar')
 
 async function attachmentUpload(file: File, onSuccess?: (url: string) => void) {
 	const uploaded = await uploadFile(props.taskId, file, onSuccess)
@@ -1167,6 +1173,12 @@ const showDeleteModal = ref(false)
 async function deleteTask() {
 	await taskStore.delete(task.value)
 	success({message: t('task.detail.deleteSuccess')})
+
+	if (displayMode.value === 'sidebar') {
+		emit('taskDeleted', task.value)
+		return
+	}
+
 	router.push({name: 'project.index', params: {projectId: task.value.projectId}})
 }
 
@@ -1207,6 +1219,12 @@ async function duplicateCurrentTask() {
 	const duplicatedTask = await taskStore.duplicateTask(task.value.id)
 	if (duplicatedTask) {
 		success({message: t('task.detail.duplicateSuccess')})
+
+		if (displayMode.value === 'sidebar') {
+			emit('taskDuplicated', duplicatedTask)
+			return
+		}
+
 		router.push({
 			name: 'task.detail',
 			params: {id: duplicatedTask.id},
@@ -1292,6 +1310,10 @@ function setRelatedTasksActive() {
 	@media screen and (min-width: $desktop) {
 		padding: 1rem;
 	}
+}
+
+.is-sidebar .task-view {
+	padding: 1rem;
 }
 
 .is-modal .task-view {

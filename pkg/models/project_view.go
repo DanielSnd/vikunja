@@ -351,7 +351,7 @@ func createProjectView(s *xorm.Session, p *ProjectView, a web.Auth, createBacklo
 		// Set Backlog as default bucket and Done as done bucket
 		p.DefaultBucketID = backlog.ID
 		p.DoneBucketID = done.ID
-		_, err = s.ID(p.ID).Cols("default_bucket_id", "done_bucket_id").Update(p)
+		_, err = s.ID(p.ID).Cols("default_bucket_id", "done_bucket_id", "high_bucket_id", "med_bucket_id", "low_bucket_id").Update(p)
 		if err != nil {
 			return
 		}
