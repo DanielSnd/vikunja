@@ -1,6 +1,6 @@
 <template>
 	<div
-		class="task loader-container draggable"
+		class="task card-style loader-container draggable"
 		:class="{
 			'is-loading': loadingInternal || loading,
 			'draggable': !(loadingInternal || loading),
@@ -15,21 +15,81 @@
 		@click.ctrl="() => toggleTaskDone(task)"
 		@click.meta="() => toggleTaskDone(task)"
 	>
-		<img
-			v-if="coverImageBlobUrl"
-			:src="coverImageBlobUrl"
-			alt=""
-			class="tw:w-full"
+		<!-- Card Main Content Area -->
+		<div 
+			class="card-main"
+			:class="{'has-cover-image': coverImageBlobUrl}"
+			:style="coverImageBlobUrl ? `background-image: url('${coverImageBlobUrl}')` : undefined"
 		>
-		<div class="p-2">
-			<div class="tw:flex tw:justify-between">
-				<span class="task-id">
+			<!-- Card Header -->
+			<div class="card-header">
+				<!-- Top badges row -->
+				<div class="card-badges">
+					<span
+						v-if="task.dueDate > 0"
+						v-tooltip="formatDateLong(task.dueDate)"
+						class="badge due-date"
+					>
+						<span class="icon">
+							<Icon :icon="['far', 'calendar-alt']" />
+						</span>
+						<time :datetime="formatISO(task.dueDate)">
+							{{ formatDisplayDate(task.dueDate) }}
+						</time>
+					</span>
+				</div>
+
+				<!-- Task Title -->
+				<h3 class="card-title">{{ task.title }}</h3>
+				
+				<!-- Labels -->
+				<Labels
+					v-if="task.labels.length > 0"
+					:labels="task.labels"
+					class="card-labels"
+				/>
+
+				<!-- Project Title (if different) -->
+				<span
+					v-if="projectTitle"
+					class="project-badge"
+				>
+					{{ projectTitle }}
+				</span>
+
+				<!-- Progress Bar -->
+				<ProgressBar
+					v-if="task.percentDone > 0"
+					class="card-progress"
+					:value="task.percentDone * 100"
+				/>
+			</div>
+		</div>
+
+		<!-- Card Footer -->
+		<div 
+			class="card-footer"
+			:class="`status-${task.done ? 4 : (task.status || 0)}`"
+		>
+			<div class="footer-left">
+				<!-- Task ID / Done indicator -->
+				<span class="task-id-badge">
 					<Done
 						class="kanban-card__done"
 						:is-done="task.done"
 						variant="small"
 					/>
-					<template v-if="task.identifier === ''">
+					<Blocked
+						class="kanban-card__blocked"
+						:is-blocked="task.status === 2"
+						variant="small"
+					/>
+					<Review
+						class="kanban-card__review"
+						:is-review="task.status === 3"
+						variant="small"
+					/>
+					<!-- <template v-if="task.identifier === ''">
 						#{{ task.index }}
 					</template>
 					<template v-else>
@@ -40,73 +100,66 @@
 						class="tw:text-red-600 tw:ps-2"
 					>
 						{{ task.position }}
-					</span>
+					</span> -->
+					<!-- Priority -->
+					<EffortLabel
+						v-if="task.effort"
+						:effort="task.effort"
+						:done="task.done"
+						class="effort-indicator"
+					/>
 				</span>
-				<span
-					v-if="task.dueDate > 0"
-					v-tooltip="formatDateLong(task.dueDate)"
-					class="due-date"
-				>
-					<span class="icon">
-						<Icon :icon="['far', 'calendar-alt']" />
-					</span>
-					<time :datetime="formatISO(task.dueDate)">
-						{{ formatDisplayDate(task.dueDate) }}
-					</time>
-				</span>
-			</div>
-			
-			<h3>{{ task.title }}</h3>
-			
-			<span
-				v-if="projectTitle"
-				class="project-title"
-			>
-				{{ projectTitle }}
-			</span>
 
-			<ProgressBar
-				v-if="task.percentDone > 0"
-				class="task-progress"
-				:value="task.percentDone * 100"
-			/>
-			<div class="footer">
-				<Labels :labels="task.labels" />
+				<!-- Metadata Icons -->
+				<div class="metadata-icons">
+					<span
+						v-if="task.attachments.length > 0"
+						v-tooltip="$t('task.attachment.attachments')"
+						class="meta-icon"
+					>
+						<Icon icon="paperclip" />
+						<span class="meta-count">{{ task.attachments.length }}</span>
+					</span>
+					<span
+						v-if="!isEditorContentEmpty(task.description)"
+						v-tooltip="$t('task.hasDescription')"
+						class="meta-icon"
+					>
+						<Icon icon="align-left" />
+					</span>
+					<span
+						v-if="task.repeatAfter.amount > 0"
+						v-tooltip="$t('task.repeat.repeat')"
+						class="meta-icon"
+					>
+						<Icon icon="history" />
+					</span>
+					<CommentCount
+						:task="task"
+						class="meta-icon"
+					/>
+					<ChecklistSummary
+						:task="task"
+						class="meta-icon checklist"
+					/>
+				</div>
+			</div>
+
+			<div class="footer-right">
+				<!-- Priority -->
 				<PriorityLabel
+					v-if="task.priority"
 					:priority="task.priority"
 					:done="task.done"
-					class="is-inline-flex is-align-items-center"
+					class="priority-indicator"
 				/>
-				<span
-					v-if="task.attachments.length > 0"
-					class="icon"
-				>
-					<Icon icon="paperclip" />
-				</span>
-				<span
-					v-if="!isEditorContentEmpty(task.description)"
-					class="icon"
-				>
-					<Icon icon="align-left" />
-				</span>
-				<span
-					v-if="task.repeatAfter.amount > 0"
-					class="icon"
-				>
-					<Icon icon="history" />
-				</span>
-				<CommentCount
-					:task="task"
-					class="project-task-icon"
-				/>
+				
+				<!-- Assignees -->
 				<AssigneeList
 					v-if="task.assignees.length > 0"
 					:assignees="task.assignees"
-					:avatar-size="24"
-				/>
-				<ChecklistSummary
-					:task="task"
-					class="checklist"
+					:avatar-size="28"
+					class="card-assignees"
 				/>
 			</div>
 		</div>
@@ -120,6 +173,7 @@ import {useRouter} from 'vue-router'
 import {useGlobalNow} from '@/composables/useGlobalNow'
 
 import PriorityLabel from '@/components/tasks/partials/PriorityLabel.vue'
+import EffortLabel from '@/components/tasks/partials/EffortLabel.vue'
 import ProgressBar from '@/components/misc/ProgressBar.vue'
 import Done from '@/components/misc/Done.vue'
 import Labels from '@/components/tasks/partials/Labels.vue'
@@ -140,6 +194,8 @@ import {playPopSound} from '@/helpers/playPop'
 import {isEditorContentEmpty} from '@/helpers/editorContentEmpty'
 import {useProjectStore} from '@/stores/projects'
 import {TASK_REPEAT_MODES} from '@/types/IRepeatMode'
+import Blocked from '@/components/misc/Blocked.vue'
+import Review from '@/components/misc/Review.vue'
 
 const props = withDefaults(defineProps<{
 	task: ITask,
@@ -240,16 +296,31 @@ watch(
 $task-background: var(--white);
 
 .task {
-	-webkit-touch-callout: none; // iOS Safari
+	-webkit-touch-callout: none;
 	user-select: none;
 	cursor: pointer;
-	box-shadow: var(--shadow-xs);
-	display: block;
-
+	display: flex;
+	flex-direction: column;
 	font-size: .9rem;
 	border-radius: $radius;
 	background: $task-background;
 	overflow: hidden;
+	transition: all 0.2s ease;
+	
+	// Card-style enhancements
+	&.card-style {
+		box-shadow: 
+			0 1px 3px rgba(0, 0, 0, 0.08),
+			0 1px 2px rgba(0, 0, 0, 0.06);
+		border: 1px solid var(--grey-200);
+		
+		&:hover {
+			box-shadow: 
+				0 4px 12px rgba(0, 0, 0, 0.1),
+				0 2px 4px rgba(0, 0, 0, 0.08);
+			transform: translateY(-2px);
+		}
+	}
 
 	&.loader-container.is-loading::after {
 		inline-size: 1.5rem;
@@ -259,148 +330,341 @@ $task-background: var(--white);
 		border-width: 2px;
 	}
 
-	h3 {
-		font-family: $family-sans-serif;
-		font-size: .85rem;
-		word-break: break-word;
-	}
-
-
-	.due-date {
-		float: inline-end;
-		display: flex;
-		align-items: center;
-		padding: 0 .25rem;
-		font-size: .85rem;
-
-		.icon {
-			margin-inline-end: .25rem;
-		}
-
-	}
-
-	&[data-is-overdue] .due-date {
-		color: var(--danger);
-	}
-
-	.label-wrapper .tag {
-		margin: .5rem .5rem 0 0;
-	}
-
-	.footer {
-		background: transparent;
-		padding: 0;
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: .25rem;
-		margin-block-start: .25rem;
-
-		:deep(.checklist-summary) {
-			padding-inline-start: 0;
-		}
-
-		.assignees {
-			display: flex;
-
-			.user {
-				display: inline;
-				margin: 0;
-
-				img {
-					margin: 0;
-				}
-			}
-		}
-
-		.priority-label {
-			font-size: .75rem;
-			padding: 0 .5rem 0 .25rem;
-
-			.icon {
-				block-size: 1rem;
-				padding: 0 .25rem;
-				margin-block-start: 0;
-			}
-		}
-	}
-
-	.footer .icon,
-	.due-date,
-	.priority-label {
-		background: var(--grey-100);
-		border-radius: $radius;
-		padding: 0 .5rem;
-	}
-
-	.task-id, .project-title {
-		color: var(--grey-500);
-		font-size: .8rem;
-		margin-block-end: .25rem;
-		display: flex;
-	}
-
 	&.is-moving {
 		opacity: .5;
 	}
 
-	span {
-		inline-size: auto;
+	&[data-is-overdue] .due-date {
+		color: var(--danger);
+		background-color: var(--danger-light);
+	}
+}
+
+// Card Main Content
+.card-main {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+
+// Cover Image
+.card-cover {
+	width: 100%;
+	height: 120px;
+	overflow: hidden;
+	background: var(--grey-100);
+	
+	img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+}
+
+// Card Header
+.card-header {
+	padding: 0.75rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	flex: 1;
+}
+
+.card-badges {
+	display: flex;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+	margin-bottom: 0.25rem;
+}
+
+.badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	padding: 0.125rem 0.5rem;
+	background: var(--grey-100);
+	border-radius: calc($radius / 1.5);
+	font-size: 0.75rem;
+	line-height: 1.5;
+	
+	.icon {
+		font-size: 0.85rem;
+	}
+}
+
+.due-date {
+	color: var(--text-secondary);
+}
+
+.card-title {
+	font-family: $family-sans-serif;
+	font-size: 0.9rem;
+	font-weight: 500;
+	line-height: 1.4;
+	word-break: break-word;
+	margin: 0;
+	color: var(--text-primary);
+}
+
+.card-labels {
+	:deep(.tag) {
+		margin: 0.25rem 0.25rem 0 0;
+		font-size: 0.7rem;
+		padding: 0.125rem 0.5rem;
+	}
+}
+
+.project-badge {
+	display: inline-flex;
+	align-items: center;
+	padding: 0.25rem 0.5rem;
+	background: var(--primary-light);
+	color: var(--primary);
+	border-radius: calc($radius / 1.5);
+	font-size: 0.75rem;
+	font-weight: 500;
+	width: fit-content;
+}
+.status-badge {
+	display: inline-flex;
+	align-items: center;
+	flex-shrink: 0;
+}
+
+.status-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+		
+	// More vibrant status colors
+	&.status-0 {
+		background:hsl(210, 2.5%, 31.4%);
 	}
 
-	&.has-custom-background-color {
-		color: hsl(215, 27.9%, 16.9%); // copied from grey-800 to avoid different values in dark mode
-
-		.footer .icon,
-		.due-date,
-		.priority-label {
-			background: hsl(220, 13%, 91%);
-		}
-
-		.footer :deep(.checklist-summary) {
-			color: hsl(216.9, 19.1%, 26.7%); // grey-700
-		}
+	&.status-1 {
+		background: hsl(220, 60%, 90%); // navy blue
+		border-top-color: hsl(220, 60%, 75%);
 	}
 
-	&.has-light-text {
-		--white: hsla(var(--white-h), var(--white-s), var(--white-l), var(--white-a)) !important;
-		color: var(--white);
-
-		.task-id {
-			color: hsl(220, 13%, 91%); // grey-200;
-		}
-
-		.footer .icon,
-		.due-date,
-		.priority-label {
-			background: hsl(215, 27.9%, 16.9%); // grey-800
-		}
-
-		.footer {
-			.icon svg {
-				fill: var(--white);
-			}
-
-			:deep(.checklist-summary) {
-				color: hsl(220, 13%, 91%); // grey-200
-			}
-		}
+	&.status-2 {
+		background: hsl(0, 60%, 90%); // red
+		border-top-color: hsl(0, 60%, 75%);
 	}
+
+	&.status-3 {
+		background: hsl(180, 50%, 90%); // teal
+		border-top-color: hsl(180, 50%, 75%);
+	}
+
+	&.status-4 {
+		background: hsl(140, 50%, 90%); // green
+		border-top-color: hsl(140, 50%, 75%);
+	}
+}
+
+.card-progress {
+	margin-top: 0.5rem;
+	width: 100%;
+	height: 0.375rem;
+}
+
+// Card Footer
+.card-footer {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+	padding: 0.5rem 0.75rem;
+	background: var(--grey-50);
+	border-top: 1px solid var(--grey-200);
+	min-height: 48px;
+
+	&.status-0 {
+		background: var(--grey-500);
+	}
+	
+	&.status-1 {
+		background: hsl(220, 70%, 50%); // navy blue
+	}
+	
+	&.status-2 {
+		background: hsl(0, 70%, 50%); // red
+	}
+	
+	&.status-3 {
+		background: hsl(180, 70%, 40%); // teal
+	}
+	
+	&.status-4 {
+		background: hsl(140, 60%, 40%); // green
+	}
+}
+
+.footer-left {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	flex: 1;
+	min-width: 0;
+}
+
+.footer-right {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	flex-shrink: 0;
+}
+
+.task-id-badge {
+	display: inline-flex;
+	align-items: center;
+	padding: 0.125rem 0.375rem;
+	// background: var(--grey-200);
+	border-radius: calc($radius / 1.5);
+	font-size: 0.75rem;
+	color: var(--grey-600);
+	font-weight: 500;
+	flex-shrink: 0;
 }
 
 .kanban-card__done {
-	margin-inline-end: .25rem;
+	margin-inline-end: 0.25rem;
 }
 
-.task-progress {
-	margin: 8px 0 0;
-	inline-size: 100%;
-	block-size: 0.5rem;
+.kanban-card__blocked {
+	margin-inline-end: 0.25rem;
+}
+
+.kanban-card__review {
+	margin-inline-end: 0.25rem;
+}
+
+.metadata-icons {
+	display: flex;
+	align-items: center;
+	gap: 0.375rem;
+	flex-wrap: wrap;
+	overflow: hidden;
+}
+
+.meta-icon {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	color: var(--grey-600);
+	font-size: 0.85rem;
+	flex-shrink: 0;
+	
+	.icon {
+		font-size: 1rem;
+	}
+	
+	.meta-count {
+		font-size: 0.75rem;
+		font-weight: 500;
+	}
 }
 
 :deep(.comment-count) {
-	background: var(--grey-100);
-	border-radius: $radius;
-	padding: 0.25rem;
+	background: transparent;
+	padding: 0;
+	color: var(--grey-600);
+}
+
+.checklist {
+	:deep(.checklist-summary) {
+		padding: 0;
+		color: var(--grey-600);
+	}
+}
+
+.priority-indicator {
+	font-size: 0.75rem;
+	padding: 0.25rem 0.5rem;
+	border-radius: calc($radius / 1.5);
+	
+	.icon {
+		height: 1rem;
+		padding: 0;
+		margin: 0;
+	}
+}
+
+.card-assignees {
+	:deep(.user) {
+		margin: 0;
+		// border: 2px solid var(--white);
+		
+		&:not(:first-child) {
+			margin-left: -0.5rem;
+		}
+		
+		img {
+			width: 28px;
+			height: 28px;
+		}
+	}
+}
+
+// Custom Background Color Variants
+.has-custom-background-color {
+	color: hsl(215, 27.9%, 16.9%);
+
+	.card-footer {
+		background: rgba(255, 255, 255, 0.15);
+		border-top-color: rgba(0, 0, 0, 0.1);
+	}
+
+	.badge,
+	.task-id-badge {
+		background: rgba(255, 255, 255, 0.2);
+		color: hsl(215, 27.9%, 16.9%);
+	}
+
+	.project-badge {
+		background: rgba(255, 255, 255, 0.25);
+		color: hsl(215, 27.9%, 16.9%);
+	}
+
+	.meta-icon {
+		color: hsl(216.9, 19.1%, 26.7%);
+	}
+}
+
+.has-light-text {
+	color: var(--white);
+
+	.card-title {
+		color: var(--white);
+	}
+
+	.card-footer {
+		background: rgba(0, 0, 0, 0.15);
+		border-top-color: rgba(255, 255, 255, 0.1);
+	}
+
+	.badge,
+	.task-id-badge {
+		background: rgba(0, 0, 0, 0.2);
+		color: var(--white);
+	}
+
+	.project-badge {
+		background: rgba(0, 0, 0, 0.25);
+		color: var(--white);
+	}
+
+	.meta-icon {
+		color: hsl(220, 13%, 91%);
+		
+		.icon svg {
+			fill: var(--white);
+		}
+	}
+
+	:deep(.checklist-summary) {
+		color: hsl(220, 13%, 91%);
+	}
 }
 </style>

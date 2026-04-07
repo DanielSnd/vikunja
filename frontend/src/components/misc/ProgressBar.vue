@@ -30,7 +30,8 @@ withDefaults(defineProps<{
 	--progress-value-background-color: var(--grey-500, #{$text});
 	--progress-border-radius: #{$radius};
 	--progress-indeterminate-duration: 1.5s;
-
+  	
+	max-height: 20px;
 	appearance: none;
 	border: none;
 	border-radius: var(--progress-border-radius);

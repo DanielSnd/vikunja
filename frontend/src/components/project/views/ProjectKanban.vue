@@ -70,6 +70,18 @@
 									>
 										{{ bucket.limit > 0 ? `${bucket.count}/${bucket.limit}` : bucket.count }}
 									</span>
+
+									<XButton
+										v-else
+										v-tooltip="bucket.limit > 0 && bucket.count >= bucket.limit ? $t('project.kanban.bucketLimitReached') : ''"
+										class="is-right"
+										:shadow="false"
+										icon="plus"
+										variant="secondary"
+										:disabled="bucket.limit > 0 && bucket.count >= bucket.limit"
+										@click="toggleShowNewTaskInput(bucket.id)"
+									> 
+									</XButton>
 									<Dropdown
 										v-if="canWrite && !collapsedBuckets[bucket.id]"
 										class="is-right options"
@@ -195,43 +207,29 @@
 													{{ $t('project.create.addTitleRequired') }}
 												</p>
 											</div>
-											<XButton
-												v-else
-												v-tooltip="bucket.limit > 0 && bucket.count >= bucket.limit ? $t('project.kanban.bucketLimitReached') : ''"
-												class="is-fullwidth has-text-centered"
-												:shadow="false"
-												icon="plus"
-												variant="secondary"
-												:disabled="bucket.limit > 0 && bucket.count >= bucket.limit"
-												@click="toggleShowNewTaskInput(bucket.id)"
-											>
-												{{
-													bucket.tasks.length === 0 ? $t('project.kanban.addTask') : $t('project.kanban.addAnotherTask')
-												}}
-											</XButton>
 										</div>
 									</template>
 
 									<template #item="{element: task}">
-										<div
-											class="task-item"
-											:data-task-id="task.id"
-										>
-											<span
-												v-if="canWrite && isTouchDevice"
-												class="handle"
-												@click="openTask(task)"
-												@touchstart.passive="onHandleTouchStart"
-												@touchmove.passive="onHandleTouchMove"
-											/>
-											<KanbanCard
-												class="kanban-card"
-												:task="task"
-												:loading="taskUpdating[task.id] ?? false"
-												:project-id="projectId"
-												@taskCompletedRecurring="handleRecurringTaskCompletion"
-											/>
-										</div>
+									<div
+										class="task-item card-item"
+										:data-task-id="task.id"
+									>
+										<span
+										v-if="canWrite && isTouchDevice"
+										class="handle"
+										@click="openTask(task)"
+										@touchstart.passive="onHandleTouchStart"
+										@touchmove.passive="onHandleTouchMove"
+										/>
+										<KanbanCard
+										class="kanban-card"
+										:task="task"
+										:loading="taskUpdating[task.id] ?? false"
+										:project-id="projectId"
+										@taskCompletedRecurring="handleRecurringTaskCompletion"
+										/>
+									</div>
 									</template>
 								</draggable>
 							</div>
@@ -985,17 +983,23 @@ $filter-container-height: '1rem - #{$switch-view-height}';
 
 		.tasks {
 			display: grid;
-			grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+			grid-template-columns: repeat(auto-fill,minmax(200px,0.1fr));
 			gap: 1rem;
 			margin-top: 0.75rem;
 		}
 
 		.task-item {
-			background-color: var(--grey-100);
-			padding: .25rem .5rem;
+			background-color: transparent; // Remove background from wrapper
+			padding: 0; // Remove padding from wrapper
 			position: relative;
-			border-radius: $radius;
+			border-radius: 8px;
 			min-inline-size: 0;
+			
+			&.card-item {
+				// Card-specific styling
+				width: 200px; // Adjust based on your needs
+				margin-bottom: 0.5rem;
+			}
 
 			.handle {
 				position: absolute;
@@ -1008,12 +1012,98 @@ $filter-container-height: '1rem - #{$switch-view-height}';
 			}
 		}
 
+		// Card styling
+		.kanban-card {
+			background-color: var(--grey-100);
+			border-radius: 15px !important;
+			box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+			transition: all 0.3s cubic-bezier(.25,.8,.25,1);
+			overflow: hidden;
+			display: flex;
+			flex-direction: column;
+			
+			&:hover {
+				box-shadow: 0 4px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23);
+				transform: translateY(-2px);
+			}
+			
+			// Card header
+			.card-header {
+				padding: 0.75rem;
+				border-bottom: 1px solid var(--grey-200);
+				min-height: 180px;
+			}
+			
+			// Card title
+			.card-title {
+				font-size: 22px;
+				font-weight: 500;
+				line-height: 1.4;
+				color: var(--text-primary);
+				word-wrap: break-word;
+				overflow-wrap: break-word;
+			}
+			
+			// Card footer
+			.card-footer {
+				padding: 0.5rem 0.75rem;
+				//background-color: var(--grey-50);
+				border-top: 1px solid var(--grey-200);
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				gap: 0.5rem;
+				min-height: 40px;
+				border-radius: 1px 1px 10px 10px !important;
+			}
+			
+			// Card metadata (effort, assignee, priority)
+			.card-metadata {
+				display: flex;
+				align-items: center;
+				gap: 0.5rem;
+				flex-wrap: wrap;
+			}
+			
+			.card-effort {
+				display: flex;
+				align-items: center;
+				gap: 0.25rem;
+				font-size: 14px;
+				color: var(--text-secondary);
+				
+				svg {
+				width: 20px;
+				height: 20px;
+				}
+			}
+			
+			.card-assignee {
+				width: 24px;
+				height: 24px;
+				border-radius: 50%;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				font-size: 10px;
+				font-weight: 600;
+				color: white;
+			}
+			
+			.card-priority {
+				svg {
+				width: 20px;
+				height: 20px;
+				}
+			}
+		}
+
 		.no-move {
 			transition: transform 0s;
 		}
 
 		h2 {
-			font-size: 1rem;
+			font-size: 1.6rem;
 			margin: 0;
 			font-weight: 600 !important;
 		}
@@ -1037,7 +1127,7 @@ $filter-container-height: '1rem - #{$switch-view-height}';
 	}
 
 	.bucket-header {
-		background-color: var(--grey-100);
+		background-color: transparent;
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
@@ -1074,7 +1164,7 @@ $filter-container-height: '1rem - #{$switch-view-height}';
 		inset-block-end: 0;
 		block-size: min-content;
 		padding: .5rem;
-		background-color: var(--grey-100);
+		background-color: transparent;
 		border-end-start-radius: $radius;
 		border-end-end-radius: $radius;
 		transform: none;

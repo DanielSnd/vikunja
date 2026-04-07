@@ -14,7 +14,7 @@
 		>
 			<span
 				v-tooltip="!canMarkAsDone ? $t('task.readOnlyCheckbox') : ''"
-				class="is-inline-flex is-align-items-center"
+				style="vertical-align: middle !important; display: inline-flex; align-items: center;"
 			>
 				<FancyCheckbox
 					v-model="task.done"
@@ -71,6 +71,16 @@
 					</TaskGlanceTooltip>
 				</span>
 
+			</div>
+
+
+			<ProgressBar
+				v-if="task.percentDone > 0"
+				:value="task.percentDone * 100"
+				is-small
+			/>
+
+
 				<Labels
 					v-if="task.labels.length > 0"
 					class="labels mis-2 mie-1"
@@ -84,6 +94,14 @@
 					class="mis-1"
 					:inline="true"
 				/>
+
+
+				<EffortLabel
+						v-if="task.effort"
+						:effort="task.effort"
+						:done="task.done"
+						class="effort-indicator"
+					/>
 
 				<Popup
 					v-if="+new Date(task.dueDate) > 0"
@@ -137,14 +155,20 @@
 					/>
 				</span>
 
-				<ChecklistSummary :task="task" />
-			</div>
 
-			<ProgressBar
-				v-if="task.percentDone > 0"
-				:value="task.percentDone * 100"
-				is-small
-			/>
+				<Blocked
+					class="kanban-card__blocked"
+					:is-blocked="task.status === 2"
+					variant="small"
+				/>
+
+				<Review
+					class="kanban-card__review"
+					:is-review="task.status === 3"
+					variant="small"
+				/>
+
+				<ChecklistSummary :task="task" />
 
 			<ColorBubble
 				v-if="showProjectSeparately && projectColor !== '' && currentProject?.id !== task.projectId"
@@ -230,6 +254,9 @@ import {playPopSound} from '@/helpers/playPop'
 import {isEditorContentEmpty} from '@/helpers/editorContentEmpty'
 import {TASK_REPEAT_MODES} from '@/types/IRepeatMode'
 import {useGlobalNow} from '@/composables/useGlobalNow'
+import Blocked from '@/components/misc/Blocked.vue'
+import Review from '@/components/misc/Review.vue'
+import EffortLabel from '@/components/tasks/partials/EffortLabel.vue'
 
 const props = withDefaults(defineProps<{
 	theTask: ITask,
@@ -532,6 +559,8 @@ defineExpose({
 		block-size: 18px;
 		padding-block-start: 0;
 		padding-inline-end: .5rem;
+
+		vertical-align: middle;
 
 		span {
 			display: none;

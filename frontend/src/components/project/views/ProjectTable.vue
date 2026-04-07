@@ -260,6 +260,10 @@
 											:done="t.done"
 											:show-all="true"
 										/>
+										<Done
+											:is-done="t.done"
+											variant="small"
+										/>
 									</td>
 									<td v-if="activeColumns.labels">
 										<Labels :labels="t.labels" />

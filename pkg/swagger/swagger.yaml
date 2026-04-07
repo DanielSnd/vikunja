@@ -678,6 +678,18 @@ definitions:
         description: If tasks are moved to the done bucket, they are marked as done.
           If they are marked as done individually, they are moved into the done bucket.
         type: integer
+      high_bucket_id:
+        description: If tasks are moved to the done bucket, they are marked as done.
+          If they are marked as done individually, they are moved into the done bucket.
+        type: integer
+      med_bucket_id:
+        description: If tasks are moved to the done bucket, they are marked as done.
+          If they are marked as done individually, they are moved into the done bucket.
+        type: integer
+      low_bucket_id:
+        description: If tasks are moved to the done bucket, they are marked as done.
+          If they are marked as done individually, they are moved into the done bucket.
+        type: integer
       filter:
         allOf:
         - $ref: '#/definitions/models.TaskCollection'

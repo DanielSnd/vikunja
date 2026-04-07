@@ -152,6 +152,10 @@ type ProjectView struct {
 	// If tasks are moved to the done bucket, they are marked as done. If they are marked as done individually, they are moved into the done bucket.
 	DoneBucketID int64 `xorm:"bigint INDEX null" json:"done_bucket_id"`
 
+	HighBucketID int64 `xorm:"bigint INDEX null" json:"high_bucket_id"`
+	MedBucketID  int64 `xorm:"bigint INDEX null" json:"med_bucket_id"`
+	LowBucketID  int64 `xorm:"bigint INDEX null" json:"low_bucket_id"`
+
 	// A timestamp when this view was updated. You cannot change this value.
 	Updated time.Time `xorm:"updated not null" json:"updated"`
 	// A timestamp when this reaction was created. You cannot change this value.
@@ -434,6 +438,9 @@ func (pv *ProjectView) Update(s *xorm.Session, _ web.Auth) (err error) {
 			"bucket_configuration",
 			"default_bucket_id",
 			"done_bucket_id",
+			"high_bucket_id",
+			"med_bucket_id",
+			"low_bucket_id",
 		).
 		Update(pv)
 	return
