@@ -627,11 +627,6 @@ $task-background: var(--white);
 .has-custom-background-color {
 	color: hsl(215, 27.9%, 16.9%);
 
-	.card-footer {
-		background: rgba(255, 255, 255, 0.15);
-		border-top-color: rgba(0, 0, 0, 0.1);
-	}
-
 	.badge,
 	.task-id-badge {
 		background: rgba(255, 255, 255, 0.2);

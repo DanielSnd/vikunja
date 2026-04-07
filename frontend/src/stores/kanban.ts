@@ -168,7 +168,10 @@ export const useKanbanStore = defineStore('kanban', () => {
 		const currentTaskBucket = buckets.value[bucketIndex]
 		
 		const currentView: IProjectView | undefined = baseStore.currentProject?.views?.find(v => v.id === baseStore.currentProjectViewId)
-		if(typeof currentView === 'undefined') return
+		if(typeof currentView === 'undefined') {
+			setTaskInBucket(task)
+			return
+		}
 		
 		// If the task is done, make sure it is in the done bucket
 		if (task.done && currentView.doneBucketId !== 0 && currentTaskBucket.id !== currentView.doneBucketId) {

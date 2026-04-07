@@ -258,7 +258,9 @@ async function uploadCallback(files: File[] | FileList): Promise<string[]> {
 	:deep(.tiptap__editor) {
 		min-block-size: auto;
 	}
-
+	:deep(.ProseMirror) {
+		min-height: 500px;
+	}
 	:deep(.ProseMirror > h2:first-child) {
 		font-size: 1.75rem;
 		line-height: 1.2;
