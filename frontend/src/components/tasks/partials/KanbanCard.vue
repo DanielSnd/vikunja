@@ -123,13 +123,6 @@
 						<span class="meta-count">{{ task.attachments.length }}</span>
 					</span>
 					<span
-						v-if="!isEditorContentEmpty(task.description)"
-						v-tooltip="$t('task.hasDescription')"
-						class="meta-icon"
-					>
-						<Icon icon="align-left" />
-					</span>
-					<span
 						v-if="task.repeatAfter.amount > 0"
 						v-tooltip="$t('task.repeat.repeat')"
 						class="meta-icon"

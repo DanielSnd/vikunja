@@ -71,15 +71,32 @@
 						/>
 					</div>
 					
-					<!-- Reactions -->
-					<Reactions 
-						v-model="task.reactions" 
-						entity-kind="tasks"
-						:entity-id="task.id"
-						class="details"
-						:disabled="!canWrite"
-					/>
 
+					<div class="columns details">
+						<!-- Reactions -->
+						<Reactions 
+							v-model="task.reactions" 
+							entity-kind="tasks"
+							:entity-id="task.id"
+							class="details"
+							:disabled="!canWrite"
+						/>
+						<div
+							class="column"
+						>
+							<!-- Effort -->
+							<div class="detail-title">
+								<Icon icon="gear" />
+								{{ $t('task.attributes.effort') }}
+							</div>
+							<EffortSelect
+								:ref="e => setFieldRef('effort', e)"
+								v-model="task.effort"
+								:disabled="!canWrite"
+								@update:modelValue="setEffort"
+							/>
+						</div>
+					</div>
 
 					<ChecklistSummary :task="task" />
 
@@ -199,27 +216,6 @@
 									v-model="task.percentDone"
 									:disabled="!canWrite"
 									@update:modelValue="setPercentDone"
-								/>
-							</div>
-						</CustomTransition>
-						<CustomTransition
-							name="flash-background"
-							appear
-						>
-							<div
-								v-if="activeFields.effort"
-								class="column"
-							>
-								<!-- Effort -->
-								<div class="detail-title">
-									<Icon icon="gear" />
-									{{ $t('task.attributes.effort') }}
-								</div>
-								<EffortSelect
-									:ref="e => setFieldRef('effort', e)"
-									v-model="task.effort"
-									:disabled="!canWrite"
-									@update:modelValue="setEffort"
 								/>
 							</div>
 						</CustomTransition>
