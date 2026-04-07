@@ -31,11 +31,11 @@ describe('filter labels', () => {
     setActivePinia(createPinia())
   })
 
-	it('should return an empty array for an empty query', () => {
+	it('should return all visible labels for an empty query', () => {
 		const store = setupStore()
 		const labels = store.filterLabelsByQuery([], '')
 
-		expect(labels).toHaveLength(0)
+		expect(labels).toHaveLength(Object.keys(MOCK_LABELS).length)
 	})
 	it('should return labels for a query', () => {
 		const store = setupStore()

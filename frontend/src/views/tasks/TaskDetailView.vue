@@ -73,14 +73,16 @@
 					
 
 					<div class="columns details">
-						<!-- Reactions -->
-						<Reactions 
-							v-model="task.reactions" 
-							entity-kind="tasks"
-							:entity-id="task.id"
-							class="details"
-							:disabled="!canWrite"
-						/>
+						<div class="column">
+							<!-- Reactions -->
+							<Reactions 
+								v-model="task.reactions" 
+								entity-kind="tasks"
+								:entity-id="task.id"
+								class="details"
+								:disabled="!canWrite"
+							/>
+						</div>
 						<div
 							class="column"
 						>
@@ -94,6 +96,23 @@
 								v-model="task.effort"
 								:disabled="!canWrite"
 								@update:modelValue="setEffort"
+							/>
+						</div>
+						<div
+							class="column labels-column"
+						>
+							<div class="detail-title">
+								<span class="icon is-grey">
+									<Icon icon="tags" />
+								</span>
+								{{ $t('task.attributes.labels') }}
+							</div>
+							<EditLabels
+								:ref="e => setFieldRef('labels', e)"
+								v-model="task.labels"
+								:disabled="!canWrite"
+								:task-id="taskId"
+								:creatable="!authStore.isLinkShareAuth"
 							/>
 						</div>
 					</div>
@@ -360,26 +379,6 @@
 								/>
 							</div>
 						</CustomTransition>
-					</div>
-
-					<!-- Labels -->
-					<div
-						v-if="activeFields.labels"
-						class="labels-list details"
-					>
-						<div class="detail-title">
-							<span class="icon is-grey">
-								<Icon icon="tags" />
-							</span>
-							{{ $t('task.attributes.labels') }}
-						</div>
-						<EditLabels
-							:ref="e => setFieldRef('labels', e)"
-							v-model="task.labels"
-							:disabled="!canWrite"
-							:task-id="taskId"
-							:creatable="!authStore.isLinkShareAuth"
-						/>
 					</div>
 
 					<!-- Attachments -->
@@ -1557,6 +1556,20 @@ h3 .button {
 				border-color: transparent;
 			}
 		}
+	}
+}
+
+.labels-column {
+	position: relative;
+	overflow: visible;
+	z-index: 2;
+
+	:deep(.multiselect) {
+		overflow: visible;
+	}
+
+	:deep(.search-results) {
+		z-index: 150;
 	}
 }
 

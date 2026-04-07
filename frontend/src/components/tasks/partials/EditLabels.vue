@@ -8,6 +8,7 @@
 		label="title"
 		:creatable="creatable"
 		:create-placeholder="$t('task.label.createPlaceholder')"
+		:show-empty="true"
 		:search-delay="10"
 		:close-after-select="false"
 		:disabled="disabled"

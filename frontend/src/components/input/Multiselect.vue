@@ -582,7 +582,6 @@ function focus() {
 	position: relative;
 
 	> span:first-child {
-		overflow: hidden;
 		min-inline-size: 0;
 		flex: 1;
 	}
