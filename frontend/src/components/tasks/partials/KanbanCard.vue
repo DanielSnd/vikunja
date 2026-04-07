@@ -489,23 +489,31 @@ $task-background: var(--white);
 	min-height: 48px;
 
 	&.status-0 {
-		background: var(--grey-500);
+		background:hsl(210, 2.5%, 31.4%);
+		border-top-color: hsl(200, 4%, 43%);
 	}
 	
 	&.status-1 {
 		background: hsl(220, 70%, 50%); // navy blue
+		border-top-color: hsl(220, 82%, 78%);
 	}
 	
 	&.status-2 {
 		background: hsl(0, 70%, 50%); // red
+		border-top-color: hsl(0, 82%, 78%);
+
 	}
 	
 	&.status-3 {
 		background: hsl(180, 70%, 40%); // teal
+		border-top-color: hsl(180, 82%, 78%);
+
 	}
 	
 	&.status-4 {
 		background: hsl(140, 60%, 40%); // green
+		border-top-color: hsl(140, 82%, 78%);
+
 	}
 }
 

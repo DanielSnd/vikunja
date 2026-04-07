@@ -256,6 +256,10 @@ const props = withDefaults(defineProps<{
 	canWrite: true,
 })
 
+const emit = defineEmits<{
+	'countChanged': [count: number],
+}>()
+
 const copy = useCopyToClipboard()
 
 const {t} = useI18n({useScope: 'global'})
@@ -321,6 +325,12 @@ const commentStorageKey = computed(() => `task-comment-${props.taskId}`)
 const currentPage = ref(1)
 
 const commentsRef = ref<HTMLElement | null>(null)
+const totalCommentCount = ref(0)
+
+function setCommentCount(count: number) {
+	totalCommentCount.value = count
+	emit('countChanged', count)
+}
 
 
 async function attachmentUpload(files: File[] | FileList): (Promise<string[]>) {
@@ -342,6 +352,7 @@ const taskCommentService = shallowReactive(new TaskCommentService())
 
 async function loadComments(taskId: ITask['id']) {
 	if (!enabled.value) {
+		setCommentCount(0)
 		return
 	}
 
@@ -356,11 +367,13 @@ async function loadComments(taskId: ITask['id']) {
 	if (commentSortOrder.value === 'asc' && typeof props.initialComments !== 'undefined' && currentPage.value === 1) {
 		if (props.initialComments.length < configStore.maxItemsPerPage) {
 			comments.value = props.initialComments
+			setCommentCount(props.initialComments.length)
 			return
 		}
 	}
 
 	comments.value = await taskCommentService.getAll({taskId}, {order_by: commentSortOrder.value}, currentPage.value)
+	setCommentCount(taskCommentService.resultCount || comments.value.length)
 }
 
 async function changePage(page: number) {
@@ -427,6 +440,7 @@ async function addComment() {
 		} else {
 			comments.value.push(comment)
 		}
+		setCommentCount(totalCommentCount.value + 1)
 		newCommentText.value = ''
 
 		// Ensure draft is cleared from localStorage
@@ -498,6 +512,7 @@ async function deleteComment(commentToDelete: ITaskComment) {
 		await taskCommentService.delete(commentToDelete)
 		const index = comments.value.findIndex(({id}) => id === commentToDelete.id)
 		comments.value.splice(index, 1)
+		setCommentCount(Math.max(totalCommentCount.value - 1, 0))
 		success({message: t('task.comment.deleteSuccess')})
 	} finally {
 		showDeleteModal.value = false

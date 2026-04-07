@@ -394,10 +394,25 @@
 
 					<!-- Attachments -->
 					<div
-						v-show="activeFields.attachments || hasAttachments"
-						class="content attachments"
+						v-if="hasAttachments"
+						class="content details attachments-section"
 					>
+						<BaseButton
+							class="foldout-toggle"
+							:aria-expanded="showAttachments"
+							@click="showAttachments = !showAttachments"
+						>
+							<span class="foldout-toggle-label">
+								<span class="icon is-grey">
+									<Icon icon="paperclip" />
+								</span>
+								{{ $t('task.attachment.title') }} ({{ attachmentCount }})
+							</span>
+							<Icon :icon="showAttachments ? 'chevron-up' : 'chevron-down'" />
+						</BaseButton>
+
 						<Attachments
+							v-if="showAttachments"
 							:ref="e => { setFieldRef('attachments', e); attachmentsRef = e as any }"
 							:edit-enabled="canWrite"
 							:task="task"
@@ -450,12 +465,30 @@
 					</div>
 
 					<!-- Comments -->
-					<Comments
-						:can-write="canWrite"
-						:task-id="taskId"
-						:project-id="task.projectId"
-						:initial-comments="task.comments"
-					/>
+					<div class="content details comments-section">
+						<BaseButton
+							class="foldout-toggle"
+							:aria-expanded="showComments"
+							@click="showComments = !showComments"
+						>
+							<span class="foldout-toggle-label">
+								<span class="icon is-grey">
+									<Icon :icon="['far', 'comments']" />
+								</span>
+								{{ showComments ? $t('task.comment.hide', {count: commentCount}) : $t('task.comment.show', {count: commentCount}) }}
+							</span>
+							<Icon :icon="showComments ? 'chevron-up' : 'chevron-down'" />
+						</BaseButton>
+
+						<Comments
+							v-if="showComments"
+							:can-write="canWrite"
+							:task-id="taskId"
+							:project-id="task.projectId"
+							:initial-comments="task.comments"
+							@countChanged="updateCommentCount"
+						/>
+					</div>
 
 					<!-- Marker element for scroll-to-bottom button visibility -->
 					<div
@@ -470,6 +503,39 @@
 					class="column action-buttons d-print-none"
 				>
 					<template v-if="canWrite">
+						<XButton
+							v-tooltip="task.status == STATUSES.UNSET ? $t('task.detail.started') : $t('task.detail.unset')"
+							:class="{'is-pending': task.status != STATUSES.UNSET}"
+							class="button--mark-started"
+							:aria-label="task.status == STATUSES.UNSET ? $t('task.detail.started') : $t('task.detail.unset')"
+							icon="play"
+							variant="secondary"
+							@click="toggleTaskStarted()"
+						>
+							{{ task.status == STATUSES.UNSET ? $t('task.detail.started') : $t('task.detail.unset') }}
+						</XButton>
+						<XButton
+							v-tooltip="task.status != STATUSES.REVIEW ? $t('task.detail.review') : $t('task.detail.started')"
+							:class="{'is-pending': task.status != STATUSES.REVIEW}"
+							class="button--mark-review"
+							:aria-label="task.status != STATUSES.REVIEW ? $t('task.detail.review') : $t('task.detail.started')"
+							icon="circle-exclamation"
+							variant="secondary"
+							@click="toggleTaskReview()"
+						>
+							{{ task.status != STATUSES.REVIEW ? $t('task.detail.review') : $t('task.detail.started') }}
+						</XButton>
+						<XButton
+							v-tooltip="task.status != STATUSES.BLOCKED ? $t('task.detail.review') : $t('task.detail.started')"
+							:class="{'is-pending': task.status != STATUSES.BLOCKED}"
+							class="button--mark-blocked"
+							:aria-label="task.status != STATUSES.BLOCKED ? $t('task.detail.review') : $t('task.detail.started')"
+							icon="circle-exclamation"
+							variant="secondary"
+							@click="toggleTaskBlocked()"
+						>
+							{{ task.status != STATUSES.BLOCKED ? $t('task.detail.review') : $t('task.detail.started') }}
+						</XButton>
 						<XButton
 							v-shortcut="'KeyT'"
 							v-tooltip="task.done ? $t('task.detail.undone') : $t('task.detail.done')"
@@ -805,6 +871,9 @@ const authStore = useAuthStore()
 const baseStore = useBaseStore()
 
 const task = ref<ITask>(new TaskModel())
+const showComments = ref(false)
+const showAttachments = ref(false)
+const commentCount = ref(0)
 const hasAttachments = computed(() => (task.value.attachments?.length ?? 0) > 0)
 const remindersDefaultRelativeTo = computed(() => {
 	if (task.value.dueDate) {
@@ -818,6 +887,7 @@ const remindersDefaultRelativeTo = computed(() => {
 	}
 	return null
 })
+const attachmentCount = computed(() => task.value.attachments?.length ?? 0)
 const taskNotFound = ref(false)
 const taskTitle = computed(() => task.value.title)
 useTitle(taskTitle)
@@ -920,6 +990,9 @@ async function attachmentUpload(file: File, onSuccess?: (url: string) => void) {
 
 function onAttachmentsUpdated(attachments: IAttachment[]) {
 	task.value.attachments = attachments
+	if (attachments.length === 0) {
+		showAttachments.value = false
+	}
 	kanbanStore.setTaskInBucket({
 		...task.value,
 		attachments,
@@ -981,6 +1054,11 @@ function scrollToBottom() {
 	})
 }
 
+function updateCommentCount(count: number) {
+	commentCount.value = count
+	task.value.commentCount = count
+}
+
 useIntersectionObserver(
 	contentBottomMarker,
 	([entry]) => {
@@ -1023,6 +1101,8 @@ watch(
 		try {
 			const loaded = await taskService.get({id}, {expand: ['reactions', 'comments', 'is_unread', 'buckets']})
 			Object.assign(task.value, loaded)
+			updateCommentCount(loaded.commentCount ?? loaded.comments?.length ?? 0)
+			showComments.value = route.hash.startsWith('#comment-')
 			taskColor.value = task.value.hexColor
 			setActiveFields()
 
@@ -1146,6 +1226,7 @@ function setFieldActive(fieldName: keyof typeof activeFields) {
 }
 
 function openAttachments() {
+	showAttachments.value = true
 	activeFields.attachments = true
 	nextTick(() => {
 		const el = activeFieldElements.attachments
@@ -1230,6 +1311,41 @@ async function toggleTaskDone() {
 	)
 }
 
+async function toggleTaskStarted() {
+	const newTask = {
+		...task.value,
+		status: task.value.status === STATUSES.IN_PROGRESS ? STATUSES.UNSET : STATUSES.IN_PROGRESS,
+	}
+
+	await saveTask(
+		newTask,
+		toggleTaskStarted,
+	)
+}
+
+async function toggleTaskReview() {
+	const newTask = {
+		...task.value,
+		status: task.value.status === STATUSES.REVIEW ? STATUSES.IN_PROGRESS : STATUSES.REVIEW,
+	}
+
+	await saveTask(
+		newTask,
+		toggleTaskStarted,
+	)
+}
+
+async function toggleTaskBlocked() {
+	const newTask = {
+		...task.value,
+		status: task.value.status === STATUSES.BLOCKED ? STATUSES.IN_PROGRESS : STATUSES.BLOCKED,
+	}
+
+	await saveTask(
+		newTask,
+		toggleTaskBlocked,
+	)
+}
 async function changeProject(project: IProject | null) {
 	if (project === null) {
 		return
@@ -1543,6 +1659,48 @@ h3 .button {
 				}
 			}
 		}
+		&.button--mark-started {
+			background-color: transparent;
+			box-shadow: none;
+
+			&.is-pending {
+				color: rgb(86, 96, 235);
+
+				&:hover,
+				&:focus {
+					background-color: rgb(86, 96, 235);
+					color: #ffffff;
+				}
+			}
+		}
+		&.button--mark-review {
+			background-color: transparent;
+			box-shadow: none;
+
+			&.is-pending {
+				color: rgb(86, 235, 233);
+
+				&:hover,
+				&:focus {
+					background-color: rgb(86, 220, 235);
+					color: #ffffff;
+				}
+			}
+		}
+		&.button--mark-blocked {
+			background-color: transparent;
+			box-shadow: none;
+
+			&.is-pending {
+				color: rgb(231, 99, 78);
+
+				&:hover,
+				&:focus {
+					background-color: rgb(231, 99, 78);
+					color: #ffffff;
+				}
+			}
+		}
 	}
 
 	:deep(.button > span:not(.icon)) {
@@ -1570,6 +1728,28 @@ h3 .button {
 	@media print {
 		inline-size: 100% !important;
 	}
+}
+
+.comments-section {
+	margin-block-end: 0;
+}
+
+.foldout-toggle {
+	inline-size: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: .75rem 1rem;
+	border: 1px solid var(--grey-200);
+	border-radius: $radius;
+	background: var(--white);
+	color: var(--text);
+}
+
+.foldout-toggle-label {
+	display: inline-flex;
+	align-items: center;
+	gap: .5rem;
 }
 
 .action-heading {
