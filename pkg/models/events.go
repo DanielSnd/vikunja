@@ -58,6 +58,17 @@ func (t *TaskDeletedEvent) Name() string {
 	return "task.deleted"
 }
 
+// KanbanViewChangedEvent represents an event where a kanban view needs to be reloaded.
+type KanbanViewChangedEvent struct {
+	ProjectID int64 `json:"project_id"`
+	ViewID    int64 `json:"view_id"`
+}
+
+// Name defines the name for KanbanViewChangedEvent
+func (k *KanbanViewChangedEvent) Name() string {
+	return "kanban.view.changed"
+}
+
 // TaskAssigneeCreatedEvent represents an event where a task has been assigned to a user
 type TaskAssigneeCreatedEvent struct {
 	Task     *Task      `json:"task"`

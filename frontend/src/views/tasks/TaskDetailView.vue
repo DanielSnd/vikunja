@@ -773,7 +773,7 @@
 </template>
 
 <script lang="ts" setup>
-import {ref, reactive, shallowReactive, computed, watch, nextTick, onMounted} from 'vue'
+import {ref, reactive, shallowReactive, computed, watch, nextTick, onMounted, onUnmounted} from 'vue'
 import {useRouter, useRoute, type RouteLocation, onBeforeRouteLeave} from 'vue-router'
 import {useI18n} from 'vue-i18n'
 import {unrefElement, useDebounceFn, useElementSize, useIntersectionObserver, useMutationObserver} from '@vueuse/core'
@@ -802,7 +802,6 @@ import Datepicker from '@/components/input/Datepicker.vue'
 import Description from '@/components/tasks/partials/Description.vue'
 import EditAssignees from '@/components/tasks/partials/EditAssignees.vue'
 import EditLabels from '@/components/tasks/partials/EditLabels.vue'
-import Heading from '@/components/tasks/partials/Heading.vue'
 import ProjectSearch from '@/components/tasks/partials/ProjectSearch.vue'
 import PercentDoneSelect from '@/components/tasks/partials/PercentDoneSelect.vue'
 import EffortSelect from '@/components/tasks/partials/EffortSelect.vue'
@@ -833,6 +832,7 @@ import {useBaseStore} from '@/stores/base'
 
 import {useTitle} from '@/composables/useTitle'
 import {useTaskDetailShortcuts} from '@/composables/useTaskDetailShortcuts'
+import {useWebSocket} from '@/composables/useWebSocket'
 
 import {success} from '@/message'
 import type {Action as MessageAction} from '@/message'
@@ -858,6 +858,7 @@ const taskStore = useTaskStore()
 const kanbanStore = useKanbanStore()
 const authStore = useAuthStore()
 const baseStore = useBaseStore()
+const {subscribe, connected: wsConnected} = useWebSocket()
 
 const task = ref<ITask>(new TaskModel())
 const showComments = ref(false)
@@ -1079,6 +1080,24 @@ onMounted(async () => {
 
 const taskService = shallowReactive(new TaskService())
 
+async function loadTask(id: ITask['id']) {
+	const loaded = await taskService.get({id}, {expand: ['reactions', 'comments', 'is_unread', 'buckets']})
+	Object.assign(task.value, loaded)
+	updateCommentCount(loaded.commentCount ?? loaded.comments?.length ?? 0)
+	showComments.value = route.hash.startsWith('#comment-')
+	taskColor.value = task.value.hexColor
+	setActiveFields()
+
+	if (task.value.isUnread) {
+		await taskStore.markTaskAsRead(task.value.id)
+		task.value.isUnread = false
+	}
+
+	if (lastProject.value) {
+		await baseStore.handleSetCurrentProjectIfNotSet(lastProject.value)
+	}
+}
+
 // load task
 watch(
 	() => props.taskId,
@@ -1088,21 +1107,7 @@ watch(
 		}
 
 		try {
-			const loaded = await taskService.get({id}, {expand: ['reactions', 'comments', 'is_unread', 'buckets']})
-			Object.assign(task.value, loaded)
-			updateCommentCount(loaded.commentCount ?? loaded.comments?.length ?? 0)
-			showComments.value = route.hash.startsWith('#comment-')
-			taskColor.value = task.value.hexColor
-			setActiveFields()
-
-			if (task.value.isUnread) {
-				await taskStore.markTaskAsRead(task.value.id)
-				task.value.isUnread = false
-			}
-
-			if (lastProject.value) {
-				await baseStore.handleSetCurrentProjectIfNotSet(lastProject.value)
-			}
+			await loadTask(id)
 		} catch (e) {
 			if (e?.response?.status === 404) {
 				taskNotFound.value = true
@@ -1119,6 +1124,50 @@ watch(
 			visible.value = true
 		}
 	}, {immediate: true})
+
+const taskWsEvent = computed(() => {
+	if (task.value.id === 0 || task.value.projectId === 0) {
+		return null
+	}
+
+	return `project.${task.value.projectId}.task.${task.value.id}.changed`
+})
+const reloadTaskFromRealtime = useDebounceFn(() => {
+	if (props.taskId === undefined || props.taskId === 0) {
+		return
+	}
+
+	loadTask(props.taskId).catch((e) => {
+		console.warn('Failed to reload task from realtime event:', e)
+	})
+}, 300)
+
+let unsubscribeTaskWs: (() => void) | null = null
+
+watch(taskWsEvent, (eventName) => {
+	unsubscribeTaskWs?.()
+	unsubscribeTaskWs = null
+
+	if (!eventName) {
+		return
+	}
+
+	unsubscribeTaskWs = subscribe(eventName, (msg) => {
+		if (msg.event === eventName) {
+			reloadTaskFromRealtime()
+		}
+	})
+}, {immediate: true})
+
+watch(wsConnected, (isConnected, wasConnected) => {
+	if (wasConnected && !isConnected) {
+		reloadTaskFromRealtime()
+	}
+})
+
+onUnmounted(() => {
+	unsubscribeTaskWs?.()
+})
 
 type FieldType =
 	| 'assignees'

@@ -21,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	"code.vikunja.io/api/pkg/events"
 	"code.vikunja.io/api/pkg/log"
 	"code.vikunja.io/api/pkg/user"
 	"code.vikunja.io/api/pkg/web"
@@ -326,6 +327,14 @@ func (b *Bucket) Create(s *xorm.Session, a web.Auth) (err error) {
 
 	b.Position = calculateDefaultPosition(b.ID, b.Position)
 	_, err = s.Where("id = ?", b.ID).Update(b)
+	if err != nil {
+		return
+	}
+
+	events.DispatchOnCommit(s, &KanbanViewChangedEvent{
+		ProjectID: b.ProjectID,
+		ViewID:    b.ProjectViewID,
+	})
 	return
 }
 
@@ -355,6 +364,14 @@ func (b *Bucket) Update(s *xorm.Session, _ web.Auth) (err error) {
 			"project_view_id",
 		).
 		Update(b)
+	if err != nil {
+		return
+	}
+
+	events.DispatchOnCommit(s, &KanbanViewChangedEvent{
+		ProjectID: b.ProjectID,
+		ViewID:    b.ProjectViewID,
+	})
 	return
 }
 
@@ -423,5 +440,13 @@ func (b *Bucket) Delete(s *xorm.Session, a web.Auth) (err error) {
 
 	// Remove the bucket itself
 	_, err = s.Where("id = ?", b.ID).Delete(&Bucket{})
+	if err != nil {
+		return
+	}
+
+	events.DispatchOnCommit(s, &KanbanViewChangedEvent{
+		ProjectID: b.ProjectID,
+		ViewID:    b.ProjectViewID,
+	})
 	return
 }

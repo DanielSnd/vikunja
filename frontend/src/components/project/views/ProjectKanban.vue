@@ -329,7 +329,7 @@
 import {computed, nextTick, onUnmounted, ref, watch, toRef} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import {useRouteQuery} from '@vueuse/router'
-import {useMediaQuery} from '@vueuse/core'
+import {useDebounceFn, useMediaQuery} from '@vueuse/core'
 import {useI18n} from 'vue-i18n'
 import draggable from 'zhyswan-vuedraggable'
 import {klona} from 'klona/lite'
@@ -362,6 +362,7 @@ import {calculateItemPosition} from '@/helpers/calculateItemPosition'
 
 import {isSavedFilter, useSavedFilter} from '@/services/savedFilter'
 import {useTaskDragToProject} from '@/composables/useTaskDragToProject'
+import {useWebSocket} from '@/composables/useWebSocket'
 import {success} from '@/message'
 import {useProjectStore} from '@/stores/projects'
 import type {TaskFilterParams} from '@/services/taskCollection'
@@ -403,6 +404,7 @@ const kanbanStore = useKanbanStore()
 const taskStore = useTaskStore()
 const projectStore = useProjectStore()
 const authStore = useAuthStore()
+const {subscribe, connected: wsConnected} = useWebSocket()
 
 const alwaysShowBucketTaskCount = computed(() => authStore.settings.frontendSettings.alwaysShowBucketTaskCount)
 const {handleTaskDropToProject} = useTaskDragToProject()
@@ -597,6 +599,7 @@ function startSidebarResize(event: MouseEvent) {
 }
 
 onUnmounted(() => {
+	unsubscribeKanbanWs?.()
 	stopSidebarResize()
 })
 
@@ -631,6 +634,22 @@ const bucketEffortSummary = computed(() => {
 })
 
 const taskLoading = computed(() => taskStore.isLoading || taskPositionService.value.loading)
+const kanbanWsEvent = computed(() => {
+	if (projectId.value === undefined || Number(projectId.value) === 0 || props.viewId === 0) {
+		return null
+	}
+
+	return `project.${projectId.value}.view.${props.viewId}.kanban.changed`
+})
+const reloadKanbanFromRealtime = useDebounceFn(() => {
+	if (projectId.value === undefined || Number(projectId.value) === 0) {
+		return
+	}
+
+	kanbanStore.loadBucketsForProject(projectId.value, props.viewId, params.value)
+}, 300)
+
+let unsubscribeKanbanWs: (() => void) | null = null
 
 watch(
 	() => ({
@@ -650,6 +669,27 @@ watch(
 		deep: true,
 	},
 )
+
+watch(kanbanWsEvent, (eventName) => {
+	unsubscribeKanbanWs?.()
+	unsubscribeKanbanWs = null
+
+	if (!eventName) {
+		return
+	}
+
+	unsubscribeKanbanWs = subscribe(eventName, (msg) => {
+		if (msg.event === eventName) {
+			reloadKanbanFromRealtime()
+		}
+	})
+}, {immediate: true})
+
+watch(wsConnected, (isConnected, wasConnected) => {
+	if (wasConnected && !isConnected) {
+		reloadKanbanFromRealtime()
+	}
+})
 
 function setTaskContainerRef(id: IBucket['id'], el: HTMLElement) {
 	if (!el) return

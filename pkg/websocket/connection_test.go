@@ -65,6 +65,23 @@ func TestConnectionAcceptsValidEvent(t *testing.T) {
 	assert.True(t, conn.IsSubscribed("notification.created"))
 }
 
+func TestConnectionAcceptsValidKanbanEvent(t *testing.T) {
+	hub := NewHub()
+	conn := &Connection{
+		hub:           hub,
+		userID:        1,
+		authenticated: true,
+		subscriptions: make(map[string]bool),
+		send:          make(chan OutgoingMessage, 16),
+	}
+	hub.Register(conn)
+
+	event := "project.12.view.34.kanban.changed"
+	conn.handleMessage(context.Background(), IncomingMessage{Action: ActionSubscribe, Event: event})
+
+	assert.True(t, conn.IsSubscribed(event))
+}
+
 func TestConnectionRejectsInvalidEvent(t *testing.T) {
 	conn := &Connection{
 		userID:        1,

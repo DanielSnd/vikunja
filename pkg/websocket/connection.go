@@ -19,6 +19,7 @@ package websocket
 import (
 	"context"
 	"encoding/json"
+	"regexp"
 	"sync"
 	"time"
 
@@ -266,6 +267,21 @@ var validEvents = map[string]bool{
 	"notification.created": true,
 }
 
+var dynamicEventPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`^project\.-?\d+\.view\.\d+\.kanban\.changed$`),
+	regexp.MustCompile(`^project\.-?\d+\.task\.\d+\.changed$`),
+}
+
 func isValidEvent(event string) bool {
-	return validEvents[event]
+	if validEvents[event] {
+		return true
+	}
+
+	for _, pattern := range dynamicEventPatterns {
+		if pattern.MatchString(event) {
+			return true
+		}
+	}
+
+	return false
 }
