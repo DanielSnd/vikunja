@@ -320,7 +320,7 @@ func createProjectView(s *xorm.Session, p *ProjectView, a web.Auth, createBacklo
 		// Create default buckets for kanban view
 		backlog := &Bucket{
 			ProjectViewID: p.ID,
-			Title:         "To-Do",
+			Title:         "Cake",
 			Position:      100,
 		}
 		err = backlog.Create(s, a)
@@ -330,7 +330,7 @@ func createProjectView(s *xorm.Session, p *ProjectView, a web.Auth, createBacklo
 
 		doing := &Bucket{
 			ProjectViewID: p.ID,
-			Title:         "Doing",
+			Title:         "Icing",
 			Position:      200,
 		}
 		err = doing.Create(s, a)
@@ -340,7 +340,7 @@ func createProjectView(s *xorm.Session, p *ProjectView, a web.Auth, createBacklo
 
 		done := &Bucket{
 			ProjectViewID: p.ID,
-			Title:         "Done",
+			Title:         "Sprinkles",
 			Position:      300,
 		}
 		err = done.Create(s, a)
@@ -350,7 +350,10 @@ func createProjectView(s *xorm.Session, p *ProjectView, a web.Auth, createBacklo
 
 		// Set Backlog as default bucket and Done as done bucket
 		p.DefaultBucketID = backlog.ID
-		p.DoneBucketID = done.ID
+		p.HighBucketID = backlog.ID
+		p.LowBucketID = done.ID
+		p.MedBucketID = doing.ID
+		// p.DoneBucketID = done.ID
 		_, err = s.ID(p.ID).Cols("default_bucket_id", "done_bucket_id", "high_bucket_id", "med_bucket_id", "low_bucket_id").Update(p)
 		if err != nil {
 			return

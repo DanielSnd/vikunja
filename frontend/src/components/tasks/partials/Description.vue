@@ -46,9 +46,9 @@ import CustomTransition from '@/components/misc/CustomTransition.vue'
 import Editor from '@/components/input/AsyncEditor'
 
 import {clearEditorDraft} from '@/helpers/editorDraftStorage'
-import {isEditorContentEmpty} from '@/helpers/editorContentEmpty'
 import type {ITask} from '@/modelTypes/ITask'
 import {useTaskStore} from '@/stores/tasks'
+import {buildTaskEditorContent, splitTaskEditorContent} from './taskContent'
 
 export type AttachmentUploadFunction = (file: File, onSuccess: (attachmentUrl: string) => void) => Promise<string>
 
@@ -69,7 +69,7 @@ watch(() => [props.modelValue.id, props.modelValue.title, props.modelValue.descr
 		return
 	}
 
-	content.value = buildContent({
+	content.value = buildTaskEditorContent({
 		title: props.modelValue.title,
 		description: props.modelValue.description,
 	})
@@ -91,78 +91,8 @@ const changeTimeout = ref<ReturnType<typeof setTimeout> | null>(null)
 
 const contentStorageKey = computed(() => `task-content-${props.modelValue.id}`)
 
-function escapeHtml(value: string) {
-	return value
-		.replaceAll('&', '&amp;')
-		.replaceAll('<', '&lt;')
-		.replaceAll('>', '&gt;')
-		.replaceAll('"', '&quot;')
-		.replaceAll('\'', '&#39;')
-}
-
-function buildContent(task: Pick<ITask, 'title' | 'description'>) {
-	const title = task.title.trim()
-	const description = isEditorContentEmpty(task.description) ? '' : task.description
-
-	if (title === '' && description === '') {
-		return ''
-	}
-
-	return `<h1><strong>${escapeHtml(title)}</strong></h1>${description}`
-}
-
-function splitContent(value: string) {
-	if (isEditorContentEmpty(value)) {
-		return {
-			title: '',
-			description: '',
-		}
-	}
-
-	const parser = new DOMParser()
-	const doc = parser.parseFromString(`<div>${value}</div>`, 'text/html')
-	const root = doc.body.firstElementChild
-
-	if (!root) {
-		return {
-			title: '',
-			description: '',
-		}
-	}
-
-	const nodes = Array.from(root.childNodes).filter(node => {
-		if (node.nodeType === Node.TEXT_NODE) {
-			return node.textContent?.trim() !== ''
-		}
-
-		return (node.textContent?.trim() ?? '') !== '' || (node instanceof HTMLElement && node.querySelector('img') !== null)
-	})
-
-	if (nodes.length === 0) {
-		return {
-			title: '',
-			description: '',
-		}
-	}
-
-	const [titleNode, ...descriptionNodes] = nodes
-	const title = titleNode.textContent?.split('\n')[0]?.trim() ?? ''
-
-	const descriptionWrapper = doc.createElement('div')
-	descriptionNodes.forEach(node => {
-		descriptionWrapper.appendChild(node.cloneNode(true))
-	})
-
-	const description = descriptionWrapper.innerHTML.trim()
-
-	return {
-		title,
-		description: isEditorContentEmpty(description) ? '' : description,
-	}
-}
-
 async function saveWithDelay() {
-	if (content.value === buildContent(props.modelValue)) {
+	if (content.value === buildTaskEditorContent(props.modelValue)) {
 		hasChanges.value = false
 		if (changeTimeout.value !== null) {
 			clearTimeout(changeTimeout.value)
@@ -202,7 +132,7 @@ async function save() {
 	saving.value = true
 
 	try {
-		const {title, description} = splitContent(content.value)
+		const {title, description} = splitTaskEditorContent(content.value)
 
 		const updated = await taskStore.update({
 			...props.modelValue,
@@ -213,7 +143,7 @@ async function save() {
 
 		// Clear draft from localStorage when saved successfully
 		clearEditorDraft(contentStorageKey.value)
-		content.value = buildContent(updated)
+		content.value = buildTaskEditorContent(updated)
 
 		saved.value = true
 		setTimeout(() => {

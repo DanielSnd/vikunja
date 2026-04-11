@@ -493,6 +493,15 @@ func createProjectWithEverything(s *xorm.Session, project *models.ProjectWithTas
 			migrationBucketIDs[mb.ID] = true
 		}
 
+		var newBacklogBucket *models.Bucket
+		for _, b := range buckets {
+			if b.Title == "Cake" {
+				newBacklogBucket = b
+				newBacklogBucket.ProjectID = project.ID
+				break
+			}
+		}
+
 		for _, b := range buckets {
 			if migrationBucketIDs[b.ID] {
 				continue
