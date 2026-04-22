@@ -589,12 +589,32 @@ watch(
 		if (!editor?.value) return
 
 		if (editor.value.getHTML() === value) {
+			lastSavedState = value
+			return
+		}
+
+		if (isEditing.value) {
+			// Background saves and realtime task reloads should not kick the user
+			// out of edit mode or overwrite the in-progress editor session.
+			lastSavedState = value
 			return
 		}
 
 		setModeAndValue(value)
 	},
 	{immediate: true},
+)
+
+watch(
+	() => props.storageKey,
+	(newStorageKey, oldStorageKey) => {
+		if (!editor?.value || newStorageKey === oldStorageKey) {
+			return
+		}
+
+		setModeAndValue(modelValue.value)
+		lastSavedState = modelValue.value
+	},
 )
 
 function bubbleNow() {
