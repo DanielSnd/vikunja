@@ -3,7 +3,7 @@
 		ref="taskViewContainer"
 		class="loader-container task-view-container"
 		:class="{
-			'is-loading': taskService.loading || !visible,
+			'is-loading': isInitialLoading,
 			'is-modal': isModal,
 			'is-sidebar': isSidebar,
 		}"
@@ -202,7 +202,7 @@
 										:ref="e => setFieldRef('dueDate', e)"
 										v-model="task.dueDate"
 										:choose-date-label="$t('task.detail.chooseDueDate')"
-										:disabled="taskService.loading || !canWrite"
+										:disabled="isInitialLoading || !canWrite"
 										@closeOnChange="saveTask()"
 									/>
 									<BaseButton
@@ -256,7 +256,7 @@
 										:ref="e => setFieldRef('startDate', e)"
 										v-model="task.startDate"
 										:choose-date-label="$t('task.detail.chooseStartDate')"
-										:disabled="taskService.loading || !canWrite"
+										:disabled="isInitialLoading || !canWrite"
 										@closeOnChange="saveTask()"
 									/>
 									<BaseButton
@@ -289,7 +289,7 @@
 										:ref="e => setFieldRef('endDate', e)"
 										v-model="task.endDate"
 										:choose-date-label="$t('task.detail.chooseEndDate')"
-										:disabled="taskService.loading || !canWrite"
+										:disabled="isInitialLoading || !canWrite"
 										@closeOnChange="saveTask()"
 									/>
 									<BaseButton
@@ -944,6 +944,8 @@ const taskColor = ref<ITask['hexColor']>('')
 
 // Used to avoid flashing of empty elements if the task content is not yet loaded.
 const visible = ref(false)
+const isInitialLoading = computed(() => !visible.value || taskService.loading && !task.value.id)
+const skipRealtimeReloadUntil = ref(0)
 
 const project = computed(() => projectStore.projects[task.value.projectId])
 
@@ -1098,6 +1100,15 @@ async function loadTask(id: ITask['id']) {
 	}
 }
 
+watch(
+	() => taskStore.lastUpdatedTask,
+	(updatedTask) => {
+		if (updatedTask?.id === task.value.id) {
+			skipRealtimeReloadUntil.value = Date.now() + 2000
+		}
+	},
+)
+
 // load task
 watch(
 	() => props.taskId,
@@ -1134,6 +1145,10 @@ const taskWsEvent = computed(() => {
 })
 const reloadTaskFromRealtime = useDebounceFn(() => {
 	if (props.taskId === undefined || props.taskId === 0) {
+		return
+	}
+
+	if (Date.now() < skipRealtimeReloadUntil.value) {
 		return
 	}
 

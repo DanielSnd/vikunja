@@ -91,13 +91,28 @@
 										>
 											{{ bucket.title }}
 										</h2>
-										<span
-											class="effort-summary"
-											:title="`${bucketEffortSummary[bucket.id]?.remaining ?? 0} / ${bucketEffortSummary[bucket.id]?.total ?? 0}`"
-										>
+									</div>
+									<span
+										class="effort-summary-list"
+										:title="getBucketEffortSummaryTitle(bucket.id)"
+									>
+										<span class="effort-summary effort-summary-total">
 											{{ bucketEffortSummary[bucket.id]?.remaining ?? 0 }} / {{ bucketEffortSummary[bucket.id]?.total ?? 0 }}
 										</span>
-									</div>
+										<span
+											v-for="assignee in bucketEffortSummary[bucket.id]?.assignees ?? []"
+											:key="`${bucket.id}-${assignee.user.id}`"
+											class="effort-summary assignee-effort-summary"
+										>
+											<User
+												:user="assignee.user"
+												:avatar-size="18"
+												:show-username="false"
+												:is-inline="true"
+											/>
+											<span>{{ assignee.remaining }} / {{ assignee.total }}</span>
+										</span>
+									</span>
 									<span
 										v-if="bucket.limit > 0 || alwaysShowBucketTaskCount"
 										:class="{'is-max': bucket.limit > 0 && bucket.count >= bucket.limit}"
@@ -352,6 +367,7 @@ import KanbanCard from '@/components/tasks/partials/KanbanCard.vue'
 import TaskDetailView from '@/views/tasks/TaskDetailView.vue'
 import Dropdown from '@/components/misc/Dropdown.vue'
 import DropdownItem from '@/components/misc/DropdownItem.vue'
+import User from '@/components/misc/User.vue'
 
 import {
 	type CollapsedBuckets,
@@ -359,6 +375,8 @@ import {
 	saveCollapsedBucketState,
 } from '@/helpers/saveCollapsedBucketState'
 import {calculateItemPosition} from '@/helpers/calculateItemPosition'
+import {getDisplayName} from '@/models/user'
+import type {IUser} from '@/modelTypes/IUser'
 
 import {isSavedFilter, useSavedFilter} from '@/services/savedFilter'
 import {useTaskDragToProject} from '@/composables/useTaskDragToProject'
@@ -622,18 +640,75 @@ function onHandleTouchMove(e: TouchEvent) {
 const buckets = computed(() => kanbanStore.buckets)
 const loading = computed(() => kanbanStore.isLoading)
 const projectIdWithFallback = computed<number>(() => project.value?.id || projectId.value)
-const bucketEffortSummary = computed(() => {
+type AssigneeEffortSummary = {
+	user: IUser,
+	remaining: number,
+	total: number,
+}
+
+type BucketEffortSummary = {
+	remaining: number,
+	total: number,
+	assignees: AssigneeEffortSummary[],
+}
+
+const bucketEffortSummary = computed<Record<IBucket['id'], BucketEffortSummary>>(() => {
 	return Object.fromEntries(buckets.value.map(bucket => {
 		const total = bucket.tasks.reduce((sum, task) => sum + (Number(task.effort) || 0), 0)
 		const remaining = bucket.tasks.reduce((sum, task) => sum + (Number(task.effort) || 0), 0) - bucket.tasks.reduce((sum, task) => {
 			return isTaskCompleted(task) ? sum : sum + (Number(task.effort) || 0)
 		}, 0)
+		const assigneeSummaryMap = new Map<IUser['id'], AssigneeEffortSummary>()
 
-		return [bucket.id, {remaining, total}]
+		bucket.tasks.forEach(task => {
+			const effort = Number(task.effort) || 0
+			if (effort === 0 || task.assignees.length === 0) {
+				return
+			}
+
+			const completedEffort = isTaskCompleted(task) ? effort : 0
+
+			task.assignees.forEach(user => {
+				const existingSummary = assigneeSummaryMap.get(user.id)
+
+				if (existingSummary) {
+					existingSummary.total += effort
+					existingSummary.remaining += completedEffort
+					return
+				}
+
+				assigneeSummaryMap.set(user.id, {
+					user,
+					total: effort,
+					remaining: completedEffort,
+				})
+			})
+		})
+
+		const assignees = Array.from(assigneeSummaryMap.values())
+			.sort((a, b) => getDisplayName(a.user).localeCompare(getDisplayName(b.user)))
+
+		return [bucket.id, {remaining, total, assignees}]
 	}))
 })
 
+function getBucketEffortSummaryTitle(bucketId: IBucket['id']) {
+	const summary = bucketEffortSummary.value[bucketId]
+	if (!summary) {
+		return '0 / 0'
+	}
+
+	const parts = [`${summary.remaining} / ${summary.total}`]
+
+	summary.assignees.forEach(assignee => {
+		parts.push(`${getDisplayName(assignee.user)} ${assignee.remaining} / ${assignee.total}`)
+	})
+
+	return parts.join(' • ')
+}
+
 const taskLoading = computed(() => taskStore.isLoading || taskPositionService.value.loading)
+const skipRealtimeReloadUntil = ref(0)
 const kanbanWsEvent = computed(() => {
 	if (projectId.value === undefined || Number(projectId.value) === 0 || props.viewId === 0) {
 		return null
@@ -643,6 +718,10 @@ const kanbanWsEvent = computed(() => {
 })
 const reloadKanbanFromRealtime = useDebounceFn(() => {
 	if (projectId.value === undefined || Number(projectId.value) === 0) {
+		return
+	}
+
+	if (Date.now() < skipRealtimeReloadUntil.value) {
 		return
 	}
 
@@ -667,6 +746,15 @@ watch(
 	{
 		immediate: true,
 		deep: true,
+	},
+)
+
+watch(
+	() => taskStore.lastUpdatedTask,
+	(updatedTask) => {
+		if (updatedTask?.projectId === projectId.value) {
+			skipRealtimeReloadUntil.value = Date.now() + 2000
+		}
 	},
 )
 
@@ -1170,7 +1258,6 @@ $filter-container-height: '1rem - #{$switch-view-height}';
 		padding: 0.75rem;
 		display: flex;
 		flex-direction: column;
-		overflow: hidden;
 
 		.tasks {
 			display: grid;
@@ -1347,21 +1434,56 @@ $filter-container-height: '1rem - #{$switch-view-height}';
 
 		.title-wrapper {
 			display: flex;
-			align-items: baseline;
+			align-items: center;
 			min-inline-size: 0;
 			gap: .5rem;
 			flex: 1 1 auto;
-			padding-right:20px;
+			padding-right: .75rem;
+		}
+
+		.effort-summary-list {
+			display: inline-flex;
+			align-items: center;
+			gap: .5rem;
+			flex: 0 1 auto;
+			min-inline-size: 0;
+			margin-inline-start: auto;
+			margin-inline-end: .75rem;
+			white-space: nowrap;
 		}
 
 		.effort-summary {
-			font-size: 1.15rem;
+			display: inline-flex;
+			align-items: center;
+			gap: .35rem;
+			font-size: .95rem;
 			color: var(--text-light);
+			background: #222;
+			padding: 8px 10px;
+			border-radius: 12px;
 			white-space: nowrap;
 			flex-shrink: 0;
-			background: #222;
-			padding: 8px;
-			border-radius: 12px;
+		}
+
+		.effort-summary-total {
+			font-size: 1.15rem;
+		}
+
+		.assignee-effort-summary {
+			:deep(.user) {
+				display: inline-flex;
+				align-items: center;
+			}
+
+			:deep(.avatar) {
+				margin-inline-end: 0;
+			}
+		}
+
+		@media screen and (max-width: $tablet) {
+			.effort-summary-list {
+				display: none;
+			}
 		}
 	}
 
