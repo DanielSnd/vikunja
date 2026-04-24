@@ -27,7 +27,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -301,8 +303,176 @@ func getWebhookHTTPClient() (client *http.Client) {
 	return
 }
 
+type discordWebhookEmbedField struct {
+	Name   string `json:"name"`
+	Value  string `json:"value"`
+	Inline bool   `json:"inline,omitempty"`
+}
+
+type discordWebhookEmbed struct {
+	Title       string                     `json:"title,omitempty"`
+	Description string                     `json:"description,omitempty"`
+	URL         string                     `json:"url,omitempty"`
+	Timestamp   string                     `json:"timestamp,omitempty"`
+	Fields      []discordWebhookEmbedField `json:"fields,omitempty"`
+}
+
+type discordWebhookPayload struct {
+	Content string                `json:"content,omitempty"`
+	Embeds  []discordWebhookEmbed `json:"embeds,omitempty"`
+}
+
+func isDiscordWebhookURL(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+
+	host := strings.ToLower(u.Hostname())
+	if host != "discord.com" && host != "discordapp.com" {
+		return false
+	}
+
+	return strings.HasPrefix(u.EscapedPath(), "/api/webhooks/")
+}
+
+func truncateWebhookText(s string, limit int) string {
+	if len(s) <= limit {
+		return s
+	}
+
+	if limit <= 3 {
+		return s[:limit]
+	}
+
+	return s[:limit-3] + "..."
+}
+
+func getMapStringValue(m map[string]interface{}, key string) string {
+	v, has := m[key]
+	if !has || v == nil {
+		return ""
+	}
+
+	switch vv := v.(type) {
+	case string:
+		return vv
+	case fmt.Stringer:
+		return vv.String()
+	default:
+		return fmt.Sprint(v)
+	}
+}
+
+func buildTaskFrontendURL(task map[string]interface{}) string {
+	taskID := getIDAsInt64(task["id"])
+	if taskID == 0 {
+		return ""
+	}
+
+	publicURL := config.ServicePublicURL.GetString()
+	if publicURL == "" {
+		return ""
+	}
+
+	if !strings.HasSuffix(publicURL, "/") {
+		publicURL += "/"
+	}
+
+	return publicURL + "tasks/" + strconv.FormatInt(taskID, 10)
+}
+
+func buildDiscordWebhookPayload(p *WebhookPayload) *discordWebhookPayload {
+	payload := &discordWebhookPayload{
+		Content: fmt.Sprintf("Vikunja event: `%s`", p.EventName),
+	}
+
+	embed := discordWebhookEmbed{
+		Title:     truncateWebhookText(strings.ReplaceAll(p.EventName, ".", " "), 256),
+		Timestamp: p.Time.UTC().Format(time.RFC3339),
+	}
+
+	data, ok := p.Data.(map[string]interface{})
+	if !ok {
+		payload.Embeds = []discordWebhookEmbed{embed}
+		return payload
+	}
+
+	task, _ := data["task"].(map[string]interface{})
+	project, _ := data["project"].(map[string]interface{})
+	doer, _ := data["doer"].(map[string]interface{})
+	bucket, _ := data["bucket"].(map[string]interface{})
+
+	if title := getMapStringValue(task, "title"); title != "" {
+		embed.Title = truncateWebhookText(title, 256)
+	}
+
+	if taskURL := buildTaskFrontendURL(task); taskURL != "" {
+		embed.URL = taskURL
+	}
+
+	if desc := getMapStringValue(task, "description"); desc != "" {
+		embed.Description = truncateWebhookText(desc, 4096)
+	}
+
+	fields := make([]discordWebhookEmbedField, 0, 5)
+	fields = append(fields, discordWebhookEmbedField{
+		Name:   "Event",
+		Value:  truncateWebhookText(p.EventName, 1024),
+		Inline: true,
+	})
+
+	if projectTitle := getMapStringValue(project, "title"); projectTitle != "" {
+		fields = append(fields, discordWebhookEmbedField{
+			Name:   "Project",
+			Value:  truncateWebhookText(projectTitle, 1024),
+			Inline: true,
+		})
+	}
+
+	if bucketTitle := getMapStringValue(bucket, "title"); bucketTitle != "" {
+		fields = append(fields, discordWebhookEmbedField{
+			Name:   "Bucket",
+			Value:  truncateWebhookText(bucketTitle, 1024),
+			Inline: true,
+		})
+	}
+
+	doerName := getMapStringValue(doer, "username")
+	if doerName == "" {
+		doerName = getMapStringValue(doer, "name")
+	}
+	if doerName != "" {
+		fields = append(fields, discordWebhookEmbedField{
+			Name:   "By",
+			Value:  truncateWebhookText(doerName, 1024),
+			Inline: true,
+		})
+	}
+
+	if identifier := getMapStringValue(task, "identifier"); identifier != "" {
+		fields = append(fields, discordWebhookEmbedField{
+			Name:   "Task",
+			Value:  truncateWebhookText(identifier, 1024),
+			Inline: true,
+		})
+	}
+
+	embed.Fields = fields
+	payload.Embeds = []discordWebhookEmbed{embed}
+	return payload
+}
+
+func marshalWebhookPayload(targetURL string, p *WebhookPayload) ([]byte, error) {
+	if isDiscordWebhookURL(targetURL) {
+		return json.Marshal(buildDiscordWebhookPayload(p))
+	}
+
+	return json.Marshal(p)
+}
+
 func (w *Webhook) sendWebhookPayload(p *WebhookPayload) (err error) {
-	payload, err := json.Marshal(p)
+	payload, err := marshalWebhookPayload(w.TargetURL, p)
 	if err != nil {
 		return err
 	}
