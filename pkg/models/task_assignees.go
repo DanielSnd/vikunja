@@ -193,8 +193,9 @@ func (la *TaskAssginee) Delete(s *xorm.Session, a web.Auth) (err error) {
 		Doer:     doer,
 	})
 	events.DispatchOnCommit(s, &TaskUpdatedEvent{
-		Task: &task,
-		Doer: doer,
+		Task:          &task,
+		Doer:          doer,
+		ChangeSummary: "Assignee removed",
 	})
 	return nil
 }
@@ -281,8 +282,9 @@ func (t *Task) addNewAssigneeByID(s *xorm.Session, newAssigneeID int64, project 
 		Doer:     doer,
 	})
 	events.DispatchOnCommit(s, &TaskUpdatedEvent{
-		Task: &task,
-		Doer: doer,
+		Task:          &task,
+		Doer:          doer,
+		ChangeSummary: "Assignee added",
 	})
 
 	err = updateProjectLastUpdated(s, &Project{ID: t.ProjectID})

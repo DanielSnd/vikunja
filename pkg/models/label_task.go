@@ -69,7 +69,7 @@ func (lt *LabelTask) Delete(s *xorm.Session, auth web.Auth) (err error) {
 		return err
 	}
 
-	return triggerTaskUpdatedEventForTaskID(s, auth, lt.TaskID)
+	return triggerTaskUpdatedEventForTaskID(s, auth, lt.TaskID, "Labels updated")
 }
 
 // Create adds a label to a task
@@ -103,7 +103,7 @@ func (lt *LabelTask) Create(s *xorm.Session, auth web.Auth) (err error) {
 		return err
 	}
 
-	err = triggerTaskUpdatedEventForTaskID(s, auth, lt.TaskID)
+	err = triggerTaskUpdatedEventForTaskID(s, auth, lt.TaskID, "Labels updated")
 	if err != nil {
 		return err
 	}
@@ -398,7 +398,7 @@ func (t *Task) UpdateTaskLabels(s *xorm.Session, creator web.Auth, labels []*Lab
 		t.Labels = append(t.Labels, label)
 	}
 
-	err = triggerTaskUpdatedEventForTaskID(s, creator, t.ID)
+	err = triggerTaskUpdatedEventForTaskID(s, creator, t.ID, "Labels updated")
 	if err != nil {
 		return
 	}

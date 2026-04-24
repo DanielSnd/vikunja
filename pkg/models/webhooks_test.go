@@ -34,6 +34,7 @@ func TestMarshalWebhookPayloadDiscord(t *testing.T) {
 		EventName: "task.updated",
 		Time:      time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC),
 		Data: map[string]interface{}{
+			"change_summary": "Status changed: Started -> For Review",
 			"task": map[string]interface{}{
 				"id":          42,
 				"title":       "Discord webhook test",
@@ -56,7 +57,7 @@ func TestMarshalWebhookPayloadDiscord(t *testing.T) {
 	var discordPayload map[string]interface{}
 	require.NoError(t, json.Unmarshal(payload, &discordPayload))
 
-	assert.Equal(t, "Vikunja event: `task.updated`", discordPayload["content"])
+	assert.Equal(t, "Task updated: **Discord webhook test**", discordPayload["content"])
 
 	embeds, ok := discordPayload["embeds"].([]interface{})
 	require.True(t, ok)
@@ -65,7 +66,7 @@ func TestMarshalWebhookPayloadDiscord(t *testing.T) {
 	embed, ok := embeds[0].(map[string]interface{})
 	require.True(t, ok)
 	assert.Equal(t, "Discord webhook test", embed["title"])
-	assert.Equal(t, "Updated from a unit test", embed["description"])
+	assert.Equal(t, "Status changed: Started -> For Review", embed["description"])
 	assert.Equal(t, "https://vikunja.example/tasks/42", embed["url"])
 	assert.Equal(t, "2026-04-24T12:00:00Z", embed["timestamp"])
 
@@ -79,6 +80,7 @@ func TestMarshalWebhookPayloadDiscord(t *testing.T) {
 		fieldValues[f["name"].(string)] = f["value"].(string)
 	}
 
+	assert.Equal(t, "Status changed: Started -> For Review", fieldValues["Update"])
 	assert.Equal(t, "task.updated", fieldValues["Event"])
 	assert.Equal(t, "Test Project", fieldValues["Project"])
 	assert.Equal(t, "In Progress", fieldValues["Bucket"])

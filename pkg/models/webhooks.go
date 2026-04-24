@@ -383,17 +383,15 @@ func buildTaskFrontendURL(task map[string]interface{}) string {
 }
 
 func buildDiscordWebhookPayload(p *WebhookPayload) *discordWebhookPayload {
-	payload := &discordWebhookPayload{
-		Content: fmt.Sprintf("Vikunja event: `%s`", p.EventName),
-	}
-
 	embed := discordWebhookEmbed{
 		Title:     truncateWebhookText(strings.ReplaceAll(p.EventName, ".", " "), 256),
 		Timestamp: p.Time.UTC().Format(time.RFC3339),
 	}
+	payload := &discordWebhookPayload{}
 
 	data, ok := p.Data.(map[string]interface{})
 	if !ok {
+		payload.Content = fmt.Sprintf("Vikunja event: `%s`", p.EventName)
 		payload.Embeds = []discordWebhookEmbed{embed}
 		return payload
 	}
@@ -402,20 +400,35 @@ func buildDiscordWebhookPayload(p *WebhookPayload) *discordWebhookPayload {
 	project, _ := data["project"].(map[string]interface{})
 	doer, _ := data["doer"].(map[string]interface{})
 	bucket, _ := data["bucket"].(map[string]interface{})
+	changeSummary := getMapStringValue(data, "change_summary")
 
-	if title := getMapStringValue(task, "title"); title != "" {
-		embed.Title = truncateWebhookText(title, 256)
+	taskTitle := getMapStringValue(task, "title")
+	if taskTitle != "" {
+		embed.Title = truncateWebhookText(taskTitle, 256)
+		payload.Content = fmt.Sprintf("Task updated: **%s**", truncateWebhookText(taskTitle, 180))
+	} else {
+		payload.Content = fmt.Sprintf("Vikunja event: `%s`", p.EventName)
 	}
 
 	if taskURL := buildTaskFrontendURL(task); taskURL != "" {
 		embed.URL = taskURL
 	}
 
-	if desc := getMapStringValue(task, "description"); desc != "" {
+	if changeSummary != "" {
+		embed.Description = truncateWebhookText(changeSummary, 4096)
+	} else if desc := getMapStringValue(task, "description"); desc != "" {
 		embed.Description = truncateWebhookText(desc, 4096)
 	}
 
 	fields := make([]discordWebhookEmbedField, 0, 5)
+	if changeSummary != "" {
+		fields = append(fields, discordWebhookEmbedField{
+			Name:   "Update",
+			Value:  truncateWebhookText(changeSummary, 1024),
+			Inline: false,
+		})
+	}
+
 	fields = append(fields, discordWebhookEmbedField{
 		Name:   "Event",
 		Value:  truncateWebhookText(p.EventName, 1024),

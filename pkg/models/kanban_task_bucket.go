@@ -254,8 +254,9 @@ func (b *TaskBucket) Update(s *xorm.Session, a web.Auth) (err error) {
 	if b.Task != nil {
 		doer, _ := user.GetFromAuth(a)
 		events.DispatchOnCommit(s, &TaskUpdatedEvent{
-			Task: b.Task,
-			Doer: doer,
+			Task:          b.Task,
+			Doer:          doer,
+			ChangeSummary: "Moved between buckets",
 		})
 	}
 	return nil

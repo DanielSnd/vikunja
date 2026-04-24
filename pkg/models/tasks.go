@@ -1113,6 +1113,21 @@ func (t *Task) Update(s *xorm.Session, a web.Auth) (err error) {
 	return t.updateSingleTask(s, a, nil)
 }
 
+func getTaskStatusTitle(status int64) string {
+	switch status {
+	case 1:
+		return "Started"
+	case 2:
+		return "Blocked"
+	case 3:
+		return "For Review"
+	case 4:
+		return "Done"
+	default:
+		return "Unset"
+	}
+}
+
 //nolint:gocyclo
 func (t *Task) updateSingleTask(s *xorm.Session, a web.Auth, fields []string) (err error) {
 
@@ -1242,6 +1257,11 @@ func (t *Task) updateSingleTask(s *xorm.Session, a web.Auth, fields []string) (e
 			t.Done = false
 			colsToUpdate = append(colsToUpdate, "done")
 		}
+	}
+
+	changeSummary := ""
+	if t.Status != ot.Status {
+		changeSummary = "Status changed: " + getTaskStatusTitle(ot.Status) + " -> " + getTaskStatusTitle(t.Status)
 	}
 
 	// If the task is being moved between projects, make sure to move the bucket + index as well
@@ -1475,8 +1495,9 @@ func (t *Task) updateSingleTask(s *xorm.Session, a web.Auth, fields []string) (e
 
 	doer, _ := user.GetFromAuth(a)
 	events.DispatchOnCommit(s, &TaskUpdatedEvent{
-		Task: t,
-		Doer: doer,
+		Task:          t,
+		Doer:          doer,
+		ChangeSummary: changeSummary,
 	})
 
 	return updateProjectLastUpdated(s, &Project{ID: t.ProjectID})
@@ -2040,7 +2061,7 @@ func (t *Task) ReadOne(s *xorm.Session, a web.Auth) (err error) {
 	return
 }
 
-func triggerTaskUpdatedEventForTaskID(s *xorm.Session, auth web.Auth, taskID int64) error {
+func triggerTaskUpdatedEventForTaskID(s *xorm.Session, auth web.Auth, taskID int64, changeSummary string) error {
 	t, err := GetTaskByIDSimple(s, taskID)
 	if err != nil {
 		return err
@@ -2048,8 +2069,9 @@ func triggerTaskUpdatedEventForTaskID(s *xorm.Session, auth web.Auth, taskID int
 
 	doer, _ := user.GetFromAuth(auth)
 	events.DispatchOnCommit(s, &TaskUpdatedEvent{
-		Task: &t,
-		Doer: doer,
+		Task:          &t,
+		Doer:          doer,
+		ChangeSummary: changeSummary,
 	})
 	return nil
 }

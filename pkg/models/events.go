@@ -38,8 +38,9 @@ func (t *TaskCreatedEvent) Name() string {
 
 // TaskUpdatedEvent represents an event where a task has been updated
 type TaskUpdatedEvent struct {
-	Task *Task      `json:"task"`
-	Doer *user.User `json:"doer"`
+	Task          *Task      `json:"task"`
+	Doer          *user.User `json:"doer"`
+	ChangeSummary string     `json:"change_summary,omitempty"`
 }
 
 // Name defines the name for TaskUpdatedEvent
