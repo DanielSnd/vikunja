@@ -1317,7 +1317,6 @@ $filter-container-height: '1rem - #{$switch-view-height}';
 				padding: 0.75rem;
 				border-bottom: 1px solid var(--grey-200);
 				min-height: 180px;
-				background: hsl(216, 19.2%, 20.4%);
 			}
 			
 			// Card title
