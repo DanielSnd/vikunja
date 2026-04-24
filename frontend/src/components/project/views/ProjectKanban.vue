@@ -728,6 +728,10 @@ const reloadKanbanFromRealtime = useDebounceFn(() => {
 	kanbanStore.loadBucketsForProject(projectId.value, props.viewId, params.value)
 }, 300)
 
+function suppressKanbanRealtimeReload(duration = 2000) {
+	skipRealtimeReloadUntil.value = Date.now() + duration
+}
+
 let unsubscribeKanbanWs: (() => void) | null = null
 
 watch(
@@ -753,7 +757,7 @@ watch(
 	() => taskStore.lastUpdatedTask,
 	(updatedTask) => {
 		if (updatedTask?.projectId === projectId.value) {
-			skipRealtimeReloadUntil.value = Date.now() + 2000
+			suppressKanbanRealtimeReload()
 		}
 	},
 )
@@ -817,6 +821,8 @@ function updateTasks(bucketId: IBucket['id'], tasks: IBucket['tasks']) {
 
 async function updateTaskPosition(e) {
 	drag.value = false
+	oneTaskUpdating.value = true
+	suppressKanbanRealtimeReload()
 
 	// Check if dropped on a sidebar project
 	const {moved} = await handleTaskDropToProject(e, (task) => {
@@ -942,6 +948,7 @@ async function addTaskToBucket(bucketId: IBucket['id']) {
 		return
 	}
 	newTaskError.value[bucketId] = false
+	suppressKanbanRealtimeReload()
 
 	const task = await taskStore.createNewTask({
 		title: newTaskText.value,
@@ -1310,6 +1317,7 @@ $filter-container-height: '1rem - #{$switch-view-height}';
 				padding: 0.75rem;
 				border-bottom: 1px solid var(--grey-200);
 				min-height: 180px;
+				background: hsl(216, 19.2%, 20.4%);
 			}
 			
 			// Card title
