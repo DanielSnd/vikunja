@@ -364,6 +364,28 @@ func getMapStringValue(m map[string]interface{}, key string) string {
 	}
 }
 
+func toWebhookObjectMap(v interface{}) map[string]interface{} {
+	if v == nil {
+		return nil
+	}
+
+	if m, ok := v.(map[string]interface{}); ok {
+		return m
+	}
+
+	payload, err := json.Marshal(v)
+	if err != nil {
+		return nil
+	}
+
+	var m map[string]interface{}
+	if err := json.Unmarshal(payload, &m); err != nil {
+		return nil
+	}
+
+	return m
+}
+
 func buildTaskFrontendURL(task map[string]interface{}) string {
 	taskID := getIDAsInt64(task["id"])
 	if taskID == 0 {
@@ -396,10 +418,10 @@ func buildDiscordWebhookPayload(p *WebhookPayload) *discordWebhookPayload {
 		return payload
 	}
 
-	task, _ := data["task"].(map[string]interface{})
-	project, _ := data["project"].(map[string]interface{})
-	doer, _ := data["doer"].(map[string]interface{})
-	bucket, _ := data["bucket"].(map[string]interface{})
+	task := toWebhookObjectMap(data["task"])
+	project := toWebhookObjectMap(data["project"])
+	doer := toWebhookObjectMap(data["doer"])
+	bucket := toWebhookObjectMap(data["bucket"])
 	changeSummary := getMapStringValue(data, "change_summary")
 
 	taskTitle := getMapStringValue(task, "title")
@@ -414,18 +436,19 @@ func buildDiscordWebhookPayload(p *WebhookPayload) *discordWebhookPayload {
 		embed.URL = taskURL
 	}
 
-	if changeSummary != "" {
-		embed.Description = truncateWebhookText(changeSummary, 4096)
-	} else if desc := getMapStringValue(task, "description"); desc != "" {
-		embed.Description = truncateWebhookText(desc, 4096)
+	if changeSummary == "" {
+		if desc := getMapStringValue(task, "description"); desc != "" {
+			embed.Description = truncateWebhookText(desc, 4096)
+		}
+	} else {
+		embed.Description = ""
 	}
 
-	fields := make([]discordWebhookEmbedField, 0, 5)
+	fields := make([]discordWebhookEmbedField, 0, 6)
 	if changeSummary != "" {
 		fields = append(fields, discordWebhookEmbedField{
-			Name:   "Update",
-			Value:  truncateWebhookText(changeSummary, 1024),
-			Inline: false,
+			Name:  "Update",
+			Value: truncateWebhookText(changeSummary, 1024),
 		})
 	}
 

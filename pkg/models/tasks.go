@@ -1260,7 +1260,13 @@ func (t *Task) updateSingleTask(s *xorm.Session, a web.Auth, fields []string) (e
 	}
 
 	changeSummary := ""
-	if t.Status != ot.Status {
+	if t.Done != ot.Done {
+		if t.Done {
+			changeSummary = "Marked done"
+		} else {
+			changeSummary = "Marked not done"
+		}
+	} else if t.Status != ot.Status {
 		changeSummary = "Status changed: " + getTaskStatusTitle(ot.Status) + " -> " + getTaskStatusTitle(t.Status)
 	}
 

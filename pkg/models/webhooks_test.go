@@ -66,7 +66,7 @@ func TestMarshalWebhookPayloadDiscord(t *testing.T) {
 	embed, ok := embeds[0].(map[string]interface{})
 	require.True(t, ok)
 	assert.Equal(t, "Discord webhook test", embed["title"])
-	assert.Equal(t, "Status changed: Started -> For Review", embed["description"])
+	assert.NotContains(t, embed, "description")
 	assert.Equal(t, "https://vikunja.example/tasks/42", embed["url"])
 	assert.Equal(t, "2026-04-24T12:00:00Z", embed["timestamp"])
 
@@ -86,6 +86,51 @@ func TestMarshalWebhookPayloadDiscord(t *testing.T) {
 	assert.Equal(t, "In Progress", fieldValues["Bucket"])
 	assert.Equal(t, "demo", fieldValues["By"])
 	assert.Equal(t, "TEST-42", fieldValues["Task"])
+}
+
+func TestMarshalWebhookPayloadDiscordWithStructTask(t *testing.T) {
+	config.ServicePublicURL.Set("https://vikunja.example/")
+
+	payload, err := marshalWebhookPayload("https://discord.com/api/webhooks/123/token", &WebhookPayload{
+		EventName: "task.updated",
+		Time:      time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC),
+		Data: map[string]interface{}{
+			"change_summary": "Marked done",
+			"task": Task{
+				ID:         99,
+				Title:      "Struct task title",
+				Identifier: "STR-99",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	var discordPayload map[string]interface{}
+	require.NoError(t, json.Unmarshal(payload, &discordPayload))
+
+	assert.Equal(t, "Task updated: **Struct task title**", discordPayload["content"])
+
+	embeds, ok := discordPayload["embeds"].([]interface{})
+	require.True(t, ok)
+	require.Len(t, embeds, 1)
+
+	embed, ok := embeds[0].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "Struct task title", embed["title"])
+	assert.Equal(t, "https://vikunja.example/tasks/99", embed["url"])
+
+	fields, ok := embed["fields"].([]interface{})
+	require.True(t, ok)
+
+	fieldValues := map[string]string{}
+	for _, field := range fields {
+		f, ok := field.(map[string]interface{})
+		require.True(t, ok)
+		fieldValues[f["name"].(string)] = f["value"].(string)
+	}
+
+	assert.Equal(t, "Marked done", fieldValues["Update"])
+	assert.Equal(t, "STR-99", fieldValues["Task"])
 }
 
 func TestMarshalWebhookPayloadGeneric(t *testing.T) {
