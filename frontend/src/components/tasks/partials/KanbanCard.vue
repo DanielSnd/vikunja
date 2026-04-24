@@ -7,18 +7,18 @@
 			'draggable': !(loadingInternal || loading),
 			'has-light-text': !colorIsDark(color),
 			'has-custom-background-color': color ?? undefined,
+			'is-tilting': tiltActive,
 		}"
-		:style="{'background-color': color ?? undefined}"
+		:style="cardStyle"
 		:data-task-id="task.id"
 		:data-project-id="task.projectId"
 		:data-is-overdue="isOverdue || undefined"
 		@click.exact="openTaskDetail()"
 		@click.ctrl="() => toggleTaskDone(task)"
 		@click.meta="() => toggleTaskDone(task)"
-		@pointerenter="handlePointerEnter"
-		@pointermove="handlePointerMove"
-		@pointerleave="resetTilt"
-		@pointercancel="resetTilt"
+		@mouseenter="handleMouseEnter"
+		@mousemove="handleMouseMove"
+		@mouseleave="resetTilt"
 	>
 		<!-- Card Main Content Area -->
 		<div 
@@ -217,10 +217,25 @@ const loadingInternal = ref(false)
 const cardRef = ref<HTMLElement | null>(null)
 
 const MAX_TILT_DEG = 7
+const tiltActive = ref(false)
+const rotateX = ref(0)
+const rotateY = ref(0)
+const glareX = ref(50)
+const glareY = ref(50)
+
 function prefersReducedMotion() {
 	return typeof window !== 'undefined' &&
 		window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
+
+const cardStyle = computed(() => ({
+	'background-color': color.value ?? undefined,
+	'--kanban-card-glare-x': `${glareX.value}%`,
+	'--kanban-card-glare-y': `${glareY.value}%`,
+	transform: prefersReducedMotion()
+		? undefined
+		: `perspective(900px) rotateX(${rotateX.value}deg) rotateY(${rotateY.value}deg) translateY(${tiltActive.value ? -4 : 0}px)`,
+}))
 
 function updateTiltStyles(clientX: number, clientY: number) {
 	if (!cardRef.value) {
@@ -234,43 +249,36 @@ function updateTiltStyles(clientX: number, clientY: number) {
 
 	const x = (clientX - left) / width
 	const y = (clientY - top) / height
-	const rotateY = (x - 0.5) * MAX_TILT_DEG * 2
-	const rotateX = (0.5 - y) * MAX_TILT_DEG * 2
-
-	cardRef.value.style.setProperty('--kanban-card-rotate-x', `${rotateX.toFixed(2)}deg`)
-	cardRef.value.style.setProperty('--kanban-card-rotate-y', `${rotateY.toFixed(2)}deg`)
-	cardRef.value.style.setProperty('--kanban-card-glare-x', `${(x * 100).toFixed(2)}%`)
-	cardRef.value.style.setProperty('--kanban-card-glare-y', `${(y * 100).toFixed(2)}%`)
+	rotateY.value = Number(((x - 0.5) * MAX_TILT_DEG * 2).toFixed(2))
+	rotateX.value = Number(((0.5 - y) * MAX_TILT_DEG * 2).toFixed(2))
+	glareX.value = Number((x * 100).toFixed(2))
+	glareY.value = Number((y * 100).toFixed(2))
 }
 
-function handlePointerEnter(event: PointerEvent) {
-	if (event.pointerType !== 'mouse' || prefersReducedMotion()) {
+function handleMouseEnter(event: MouseEvent) {
+	if (prefersReducedMotion()) {
 		return
 	}
 
-	cardRef.value?.dataset.tiltActive = 'true'
+	tiltActive.value = true
 	updateTiltStyles(event.clientX, event.clientY)
 }
 
-function handlePointerMove(event: PointerEvent) {
-	if (event.pointerType !== 'mouse' || prefersReducedMotion()) {
+function handleMouseMove(event: MouseEvent) {
+	if (prefersReducedMotion()) {
 		return
 	}
 
-	cardRef.value?.dataset.tiltActive = 'true'
+	tiltActive.value = true
 	updateTiltStyles(event.clientX, event.clientY)
 }
 
 function resetTilt() {
-	if (!cardRef.value) {
-		return
-	}
-
-	delete cardRef.value.dataset.tiltActive
-	cardRef.value.style.removeProperty('--kanban-card-rotate-x')
-	cardRef.value.style.removeProperty('--kanban-card-rotate-y')
-	cardRef.value.style.removeProperty('--kanban-card-glare-x')
-	cardRef.value.style.removeProperty('--kanban-card-glare-y')
+	tiltActive.value = false
+	rotateX.value = 0
+	rotateY.value = 0
+	glareX.value = 50
+	glareY.value = 50
 }
 
 const color = computed(() => getHexColor(props.task.hexColor))
@@ -404,7 +412,7 @@ $task-background: var(--white);
 			transform: perspective(900px) rotateX(var(--kanban-card-rotate-x)) rotateY(var(--kanban-card-rotate-y)) translateY(-2px);
 		}
 
-		&[data-tilt-active='true'] {
+		&.is-tilting {
 			transform: perspective(900px) rotateX(var(--kanban-card-rotate-x)) rotateY(var(--kanban-card-rotate-y)) translateY(-4px);
 		}
 	}
@@ -442,7 +450,7 @@ $task-background: var(--white);
 		transition: opacity 0.18s ease;
 	}
 
-	&[data-tilt-active='true']::before {
+	&.is-tilting::before {
 		opacity: 1;
 	}
 }
@@ -455,6 +463,22 @@ $task-background: var(--white);
 	min-height: 0;
 	transform: translateZ(18px);
 	background: hsl(216, 19.2%, 20.4%);
+
+	&.has-cover-image {
+		background-position: center;
+		background-repeat: no-repeat;
+		background-size: cover;
+
+		.card-title,
+		.badge,
+		.project-badge,
+		.meta-icon,
+		:deep(.tag),
+		:deep(.checklist-summary),
+		:deep(.comment-count) {
+			text-shadow: 0 0 1px rgba(0, 0, 0, 1), 0 1px 5px rgba(0, 0, 0, .1);
+		}
+	}
 }
 
 // Cover Image
@@ -776,7 +800,7 @@ $task-background: var(--white);
 	}
 
 	.task.card-style:hover,
-	.task.card-style[data-tilt-active='true'] {
+	.task.card-style.is-tilting {
 		transform: translateY(-2px);
 	}
 
@@ -794,7 +818,7 @@ $task-background: var(--white);
 	}
 
 	.task.card-style:hover,
-	.task.card-style[data-tilt-active='true'] {
+	.task.card-style.is-tilting {
 		transform: translateY(-2px);
 	}
 
