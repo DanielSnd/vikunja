@@ -538,6 +538,7 @@ $task-background: var(--white);
 	word-break: break-word;
 	margin: 0;
 	color: var(--text-primary);
+	text-shadow: 0 0 5px rgb(0, 0, 0),0 5px 5px rgba(0,0,0,.1);
 }
 
 .card-labels {
