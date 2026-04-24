@@ -1,5 +1,6 @@
 <template>
 	<div
+		ref="cardRef"
 		class="task card-style loader-container draggable"
 		:class="{
 			'is-loading': loadingInternal || loading,
@@ -14,6 +15,10 @@
 		@click.exact="openTaskDetail()"
 		@click.ctrl="() => toggleTaskDone(task)"
 		@click.meta="() => toggleTaskDone(task)"
+		@pointerenter="handlePointerEnter"
+		@pointermove="handlePointerMove"
+		@pointerleave="resetTilt"
+		@pointercancel="resetTilt"
 	>
 		<!-- Card Main Content Area -->
 		<div 
@@ -186,7 +191,6 @@ import {colorIsDark} from '@/helpers/color/colorIsDark'
 import {useTaskStore} from '@/stores/tasks'
 import AssigneeList from '@/components/tasks/partials/AssigneeList.vue'
 import {playPopSound} from '@/helpers/playPop'
-import {isEditorContentEmpty} from '@/helpers/editorContentEmpty'
 import {useProjectStore} from '@/stores/projects'
 import {TASK_REPEAT_MODES} from '@/types/IRepeatMode'
 import Blocked from '@/components/misc/Blocked.vue'
@@ -210,6 +214,64 @@ const emit = defineEmits<{
 const router = useRouter()
 
 const loadingInternal = ref(false)
+const cardRef = ref<HTMLElement | null>(null)
+
+const MAX_TILT_DEG = 7
+function prefersReducedMotion() {
+	return typeof window !== 'undefined' &&
+		window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+function updateTiltStyles(clientX: number, clientY: number) {
+	if (!cardRef.value) {
+		return
+	}
+
+	const {left, top, width, height} = cardRef.value.getBoundingClientRect()
+	if (width === 0 || height === 0) {
+		return
+	}
+
+	const x = (clientX - left) / width
+	const y = (clientY - top) / height
+	const rotateY = (x - 0.5) * MAX_TILT_DEG * 2
+	const rotateX = (0.5 - y) * MAX_TILT_DEG * 2
+
+	cardRef.value.style.setProperty('--kanban-card-rotate-x', `${rotateX.toFixed(2)}deg`)
+	cardRef.value.style.setProperty('--kanban-card-rotate-y', `${rotateY.toFixed(2)}deg`)
+	cardRef.value.style.setProperty('--kanban-card-glare-x', `${(x * 100).toFixed(2)}%`)
+	cardRef.value.style.setProperty('--kanban-card-glare-y', `${(y * 100).toFixed(2)}%`)
+}
+
+function handlePointerEnter(event: PointerEvent) {
+	if (event.pointerType !== 'mouse' || prefersReducedMotion()) {
+		return
+	}
+
+	cardRef.value?.dataset.tiltActive = 'true'
+	updateTiltStyles(event.clientX, event.clientY)
+}
+
+function handlePointerMove(event: PointerEvent) {
+	if (event.pointerType !== 'mouse' || prefersReducedMotion()) {
+		return
+	}
+
+	cardRef.value?.dataset.tiltActive = 'true'
+	updateTiltStyles(event.clientX, event.clientY)
+}
+
+function resetTilt() {
+	if (!cardRef.value) {
+		return
+	}
+
+	delete cardRef.value.dataset.tiltActive
+	cardRef.value.style.removeProperty('--kanban-card-rotate-x')
+	cardRef.value.style.removeProperty('--kanban-card-rotate-y')
+	cardRef.value.style.removeProperty('--kanban-card-glare-x')
+	cardRef.value.style.removeProperty('--kanban-card-glare-y')
+}
 
 const color = computed(() => getHexColor(props.task.hexColor))
 
@@ -291,12 +353,26 @@ watch(
 	maybeDownloadCoverImage,
 	{immediate: true},
 )
+
+watch(
+	() => props.loading,
+	(isLoading) => {
+		if (isLoading) {
+			resetTilt()
+		}
+	},
+)
 </script>
 
 <style lang="scss" scoped>
 $task-background: var(--white);
 
 .task {
+	--kanban-card-rotate-x: 0deg;
+	--kanban-card-rotate-y: 0deg;
+	--kanban-card-glare-x: 50%;
+	--kanban-card-glare-y: 50%;
+
 	-webkit-touch-callout: none;
 	user-select: none;
 	cursor: pointer;
@@ -306,7 +382,13 @@ $task-background: var(--white);
 	border-radius: $radius;
 	background: $task-background;
 	overflow: hidden;
-	transition: all 0.2s ease;
+	transform: perspective(900px) rotateX(var(--kanban-card-rotate-x)) rotateY(var(--kanban-card-rotate-y)) translateY(0);
+	transform-style: preserve-3d;
+	will-change: transform, box-shadow;
+	transition:
+		transform 0.18s ease,
+		box-shadow 0.18s ease,
+		border-color 0.18s ease;
 	
 	// Card-style enhancements
 	&.card-style {
@@ -317,9 +399,13 @@ $task-background: var(--white);
 		
 		&:hover {
 			box-shadow: 
-				0 4px 12px rgba(0, 0, 0, 0.1),
-				0 2px 4px rgba(0, 0, 0, 0.08);
-			transform: translateY(-2px);
+				0 18px 30px rgba(15, 23, 42, 0.16),
+				0 6px 14px rgba(15, 23, 42, 0.1);
+			transform: perspective(900px) rotateX(var(--kanban-card-rotate-x)) rotateY(var(--kanban-card-rotate-y)) translateY(-2px);
+		}
+
+		&[data-tilt-active='true'] {
+			transform: perspective(900px) rotateX(var(--kanban-card-rotate-x)) rotateY(var(--kanban-card-rotate-y)) translateY(-4px);
 		}
 	}
 
@@ -339,6 +425,26 @@ $task-background: var(--white);
 		color: var(--danger);
 		background-color: var(--danger-light);
 	}
+
+	&::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background:
+			radial-gradient(
+				circle at var(--kanban-card-glare-x) var(--kanban-card-glare-y),
+				rgba(255, 255, 255, 0.24),
+				rgba(255, 255, 255, 0.08) 18%,
+				transparent 48%
+			);
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 0.18s ease;
+	}
+
+	&[data-tilt-active='true']::before {
+		opacity: 1;
+	}
 }
 
 // Card Main Content
@@ -347,6 +453,8 @@ $task-background: var(--white);
 	display: flex;
 	flex-direction: column;
 	min-height: 0;
+	transform: translateZ(18px);
+	background: hsl(216, 19.2%, 20.4%);
 }
 
 // Cover Image
@@ -480,6 +588,7 @@ $task-background: var(--white);
 	background: var(--grey-50);
 	border-top: 1px solid var(--grey-200);
 	min-height: 48px;
+	transform: translateZ(28px);
 
 	&.status-0 {
 		background:hsl(210, 2.5%, 31.4%);
@@ -658,6 +767,39 @@ $task-background: var(--white);
 
 	:deep(.checklist-summary) {
 		color: hsl(220, 13%, 91%);
+	}
+}
+
+@media (hover: none) {
+	.task {
+		transform: none;
+	}
+
+	.task.card-style:hover,
+	.task.card-style[data-tilt-active='true'] {
+		transform: translateY(-2px);
+	}
+
+	.task::before {
+		display: none;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.task {
+		transform: none;
+		transition:
+			box-shadow 0.18s ease,
+			border-color 0.18s ease;
+	}
+
+	.task.card-style:hover,
+	.task.card-style[data-tilt-active='true'] {
+		transform: translateY(-2px);
+	}
+
+	.task::before {
+		display: none;
 	}
 }
 </style>
