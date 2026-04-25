@@ -1085,6 +1085,24 @@ func reloadEventData(s *xorm.Session, event map[string]interface{}, projectID in
 	return event, doerID, nil
 }
 
+func sanitizeWebhookEventData(eventName string, event map[string]interface{}) {
+	if eventName != (&TaskUpdatedEvent{}).Name() {
+		return
+	}
+
+	task, has := event["task"]
+	if !has || task == nil {
+		return
+	}
+
+	taskMap, ok := task.(map[string]interface{})
+	if !ok {
+		return
+	}
+
+	delete(taskMap, "description")
+}
+
 // Handle is executed when the event WebhookListener listens on is fired
 func (wl *WebhookListener) Handle(msg *message.Message) (err error) {
 	var event map[string]interface{}
@@ -1170,6 +1188,7 @@ func (wl *WebhookListener) Handle(msg *message.Message) (err error) {
 	if err != nil {
 		return err
 	}
+	sanitizeWebhookEventData(wl.EventName, event)
 
 	now := time.Now()
 	for _, webhook := range matchingWebhooks {

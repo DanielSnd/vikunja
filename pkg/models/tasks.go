@@ -1224,9 +1224,11 @@ func (t *Task) updateSingleTask(s *xorm.Session, a web.Auth, fields []string) (e
 	// Old task has the stored reminders
 	ot.Reminders = reminders
 
-	// Update the assignees
-	if err := ot.updateTaskAssignees(s, t.Assignees, a); err != nil {
-		return err
+	// Only update assignees when they were explicitly provided.
+	if t.Assignees != nil {
+		if err := ot.updateTaskAssignees(s, t.Assignees, a); err != nil {
+			return err
+		}
 	}
 
 	// All columns to update in a separate variable to be able to add to them

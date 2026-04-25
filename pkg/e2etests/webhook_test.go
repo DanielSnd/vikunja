@@ -94,6 +94,7 @@ func TestTaskUpdateWebhookE2E(t *testing.T) {
 		task, ok := data["task"].(map[string]interface{})
 		require.True(t, ok, "payload.data.task should be a map")
 		assert.Equal(t, "E2E webhook test", task["title"])
+		assert.NotContains(t, task, "description")
 
 	case <-time.After(10 * time.Second):
 		t.Fatal("Webhook payload not received within 10s timeout")

@@ -136,4 +136,30 @@ func TestBulkTask_Update(t *testing.T) {
 		var expectedErr ErrInvalidTaskColumn
 		assert.ErrorAs(t, err, &expectedErr)
 	})
+
+	t.Run("updating milestone keeps existing assignees", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		s := db.NewSession()
+		defer s.Close()
+
+		milestone := &Milestone{
+			ProjectID: 1,
+			Name:      "Bulk update milestone",
+		}
+		require.NoError(t, milestone.Create(s, u))
+
+		bt := &BulkTask{
+			TaskIDs: []int64{30},
+			Fields:  []string{"milestone_id"},
+			Values:  &Task{MilestoneID: milestone.ID},
+		}
+
+		err := bt.Update(s, u)
+		require.NoError(t, err)
+		require.NoError(t, s.Commit())
+
+		db.AssertExists(t, "tasks", map[string]interface{}{"id": 30, "milestone_id": milestone.ID}, false)
+		db.AssertExists(t, "task_assignees", map[string]interface{}{"task_id": 30, "user_id": 1}, false)
+		db.AssertExists(t, "task_assignees", map[string]interface{}{"task_id": 30, "user_id": 2}, false)
+	})
 }
