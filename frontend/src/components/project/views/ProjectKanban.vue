@@ -120,17 +120,24 @@
 									>
 										{{ bucket.limit > 0 ? `${bucket.count}/${bucket.limit}` : bucket.count }}
 									</span>
-
-									<XButton
-										v-else
-										v-tooltip="bucket.limit > 0 && bucket.count >= bucket.limit ? $t('project.kanban.bucketLimitReached') : ''"
-										class="is-right"
-										:shadow="false"
-										icon="plus"
-										variant="secondary"
-										:disabled="bucket.limit > 0 && bucket.count >= bucket.limit"
-										@click="toggleShowNewTaskInput(bucket.id)"
-									/>
+									<div class="bucket-actions">
+										<XButton
+											v-tooltip="hiddenDoneBuckets[bucket.id] ? $t('project.kanban.showDoneCards') : $t('project.kanban.hideDoneCards')"
+											:shadow="false"
+											:icon="hiddenDoneBuckets[bucket.id] ? 'eye' : 'eye-slash'"
+											variant="secondary"
+											@click.stop="toggleHiddenDoneCards(bucket.id)"
+										/>
+										<XButton
+											v-if="!(bucket.limit > 0 || alwaysShowBucketTaskCount)"
+											v-tooltip="bucket.limit > 0 && bucket.count >= bucket.limit ? $t('project.kanban.bucketLimitReached') : ''"
+											:shadow="false"
+											icon="plus"
+											variant="secondary"
+											:disabled="bucket.limit > 0 && bucket.count >= bucket.limit"
+											@click="toggleShowNewTaskInput(bucket.id)"
+										/>
+									</div>
 									<Dropdown
 										v-if="canWrite && !collapsedBuckets[bucket.id]"
 										class="is-right options"
@@ -261,6 +268,7 @@
 
 									<template #item="{element: task}">
 										<div
+											v-show="!hiddenDoneBuckets[bucket.id] || !isTaskCompleted(task)"
 											class="task-item card-item"
 											:class="{'is-selected': selectedTaskId === task.id}"
 											:data-task-id="task.id"
@@ -374,6 +382,11 @@ import {
 	getCollapsedBucketState,
 	saveCollapsedBucketState,
 } from '@/helpers/saveCollapsedBucketState'
+import {
+	type HiddenDoneBuckets,
+	getHiddenDoneBucketState,
+	saveHiddenDoneBucketState,
+} from '@/helpers/saveHiddenDoneBucketState'
 import {calculateItemPosition} from '@/helpers/calculateItemPosition'
 import {getDisplayName} from '@/models/user'
 import type {IUser} from '@/modelTypes/IUser'
@@ -453,6 +466,7 @@ const newTaskInputFocused = ref(false)
 
 const showSetLimitInput = ref(false)
 const collapsedBuckets = ref<CollapsedBuckets>({})
+const hiddenDoneBuckets = ref<HiddenDoneBuckets>({})
 
 // We're using this to show the loading animation only at the task when updating it
 const taskUpdating = ref<{ [id: ITask['id']]: boolean }>({})
@@ -745,6 +759,7 @@ watch(
 			return
 		}
 		collapsedBuckets.value = getCollapsedBucketState(projectId)
+		hiddenDoneBuckets.value = getHiddenDoneBucketState(projectId, viewId)
 		kanbanStore.loadBucketsForProject(projectId, viewId, params)
 	},
 	{
@@ -1191,6 +1206,11 @@ function unCollapseBucket(bucket: IBucket) {
 	saveCollapsedBucketState(projectIdWithFallback.value, collapsedBuckets.value)
 }
 
+function toggleHiddenDoneCards(bucketId: IBucket['id']) {
+	hiddenDoneBuckets.value[bucketId] = !hiddenDoneBuckets.value[bucketId]
+	saveHiddenDoneBucketState(projectIdWithFallback.value, props.viewId, hiddenDoneBuckets.value)
+}
+
 function isTaskCompleted(task: ITask) {
 	return task.done || task.status === STATUSES.DONE
 }
@@ -1430,6 +1450,13 @@ $filter-container-height: '1rem - #{$switch-view-height}';
 			&.is-max {
 				color: var(--danger);
 			}
+		}
+
+		.bucket-actions {
+			display: inline-flex;
+			align-items: center;
+			gap: .5rem;
+			margin-inline-start: .5rem;
 		}
 
 		.title.input {

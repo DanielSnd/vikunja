@@ -43,6 +43,14 @@
 			:labels="task.labels"
 		/>
 
+		<span
+			v-if="task.milestone"
+			class="tag milestone-tag mis-1"
+			:style="task.milestone.hexColor ? {backgroundColor: task.milestone.hexColor, color: 'var(--white)'} : {}"
+		>
+			{{ task.milestone.name }}
+		</span>
+
 		<AssigneeList
 			v-if="task.assignees.length > 0"
 			:assignees="task.assignees"
@@ -200,5 +208,9 @@ const project = computed(() => projectStore.projects[props.task.projectId])
 		inline-size: auto;
 		margin-inline-start: .25rem;
 	}
+}
+
+.milestone-tag {
+	margin: .25rem 0;
 }
 </style>

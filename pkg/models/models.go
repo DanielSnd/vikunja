@@ -44,6 +44,8 @@ func init() {
 func GetTables() []interface{} {
 	return []interface{}{
 		&Project{},
+		&Milestone{},
+		&MilestoneUser{},
 		&Task{},
 		&Team{},
 		&TeamMember{},

@@ -99,6 +99,12 @@
 				@update:modelValue="setSubscriptionInStore"
 			/>
 			<DropdownItem
+				:to="{ name: 'project.settings.milestones', params: { projectId: project.id } }"
+				icon="flag-checkered"
+			>
+				{{ $t('project.milestones.title') }}
+			</DropdownItem>
+			<DropdownItem
 				:to="{ name: 'project.settings.webhooks', params: { projectId: project.id } }"
 				icon="bolt"
 			>

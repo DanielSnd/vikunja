@@ -31,7 +31,19 @@
 				@enterPressed="handleEnterPressed"
 			>
 				<template #default="{ focusedRow, focusedCell }">
-					<div class="gantt-rows-container">
+					<div
+						class="gantt-rows-container"
+						:style="{width: `${totalWidth}px`}"
+					>
+						<GanttMilestones
+							v-if="milestones.length > 0"
+							:milestones="milestones"
+							:date-from-date="dateFromDate"
+							:date-to-date="dateToDate"
+							:day-width-pixels="DAY_WIDTH_PIXELS"
+							:height="totalHeight"
+							:total-width="totalWidth"
+						/>
 						<!-- Group background bands for parent-child visual grouping -->
 						<div
 							v-for="(band, bandIndex) in parentGroupBands"
@@ -99,6 +111,7 @@ import {buildGanttTaskTree, type GanttTaskTreeNode} from '@/helpers/ganttTaskTre
 import {buildRelationArrows, type GanttBarPosition, type GanttArrow} from '@/helpers/ganttRelationArrows'
 
 import type {ITask, ITaskPartialWithId} from '@/modelTypes/ITask'
+import type {IMilestone} from '@/modelTypes/IMilestone'
 import type {DateISO} from '@/types/DateISO'
 import type {GanttFilters} from '@/views/project/helpers/useGanttFilters'
 import type {GanttBarModel, GanttBarDateType} from '@/composables/useGanttBar'
@@ -109,6 +122,7 @@ import GanttRowBars from '@/components/gantt/GanttRowBars.vue'
 import GanttVerticalGridLines from '@/components/gantt/GanttVerticalGridLines.vue'
 import GanttTimelineHeader from '@/components/gantt/GanttTimelineHeader.vue'
 import GanttRelationArrows from '@/components/gantt/GanttRelationArrows.vue'
+import GanttMilestones from '@/components/gantt/GanttMilestones.vue'
 import Loading from '@/components/misc/Loading.vue'
 
 import {MILLISECONDS_A_DAY} from '@/constants/date'
@@ -118,6 +132,7 @@ const props = defineProps<{
 	isLoading: boolean,
 	filters: GanttFilters,
 	tasks: Map<ITask['id'], ITask>,
+	milestones: IMilestone[],
 	defaultTaskStartDate: DateISO
 	defaultTaskEndDate: DateISO
 }>()

@@ -60,9 +60,11 @@
 			<div class="columns mbs-2">
 				<!-- Content -->
 				<div class="column detail-content">
-					
 					<!-- Description -->
-					<div class="details content description" style="padding: 0px 25px 20px 25px; background-color: #3344; border-radius: 14px; min-height:500px; margin-bottom:20px;">
+					<div
+						class="details content description"
+						style="padding: 0px 25px 20px 25px; background-color: #3344; border-radius: 14px; min-height:500px; margin-bottom:20px;"
+					>
 						<Description
 							:model-value="task"
 							:can-write="canWrite"
@@ -142,6 +144,27 @@
 								class="mbs-2"
 							/>
 						</div>
+						<CustomTransition
+							name="flash-background"
+							appear
+						>
+							<div
+								v-if="activeFields.milestone"
+								class="column"
+							>
+								<div class="detail-title">
+									<Icon icon="flag-checkered" />
+									{{ $t('task.attributes.milestone') }}
+								</div>
+								<EditMilestone
+									:ref="e => setFieldRef('milestone', e)"
+									v-model="task.milestone"
+									:project-id="task.projectId"
+									:disabled="!canWrite"
+									@update:modelValue="setMilestone"
+								/>
+							</div>
+						</CustomTransition>
 						<CustomTransition
 							name="flash-background"
 							appear
@@ -570,6 +593,15 @@
 							{{ $t('task.detail.actions.label') }}
 						</XButton>
 						<XButton
+							v-tooltip="$t('task.detail.actions.milestone')"
+							variant="secondary"
+							:aria-label="$t('task.detail.actions.milestone')"
+							icon="flag-checkered"
+							@click="setFieldActive('milestone')"
+						>
+							{{ $t('task.detail.actions.milestone') }}
+						</XButton>
+						<XButton
 							v-shortcut="'KeyP'"
 							v-tooltip="$t('task.detail.actions.priority')"
 							variant="secondary"
@@ -785,6 +817,7 @@ import TaskModel from '@/models/task'
 import type {ITask} from '@/modelTypes/ITask'
 import type {IAttachment} from '@/modelTypes/IAttachment'
 import type {IProject} from '@/modelTypes/IProject'
+import type {IMilestone} from '@/modelTypes/IMilestone'
 
 import {PRIORITIES, type Priority} from '@/constants/priorities'
 import {STATUSES, type Status} from '@/constants/priorities'
@@ -802,6 +835,7 @@ import Datepicker from '@/components/input/Datepicker.vue'
 import Description from '@/components/tasks/partials/Description.vue'
 import EditAssignees from '@/components/tasks/partials/EditAssignees.vue'
 import EditLabels from '@/components/tasks/partials/EditLabels.vue'
+import EditMilestone from '@/components/tasks/partials/EditMilestone.vue'
 import ProjectSearch from '@/components/tasks/partials/ProjectSearch.vue'
 import PercentDoneSelect from '@/components/tasks/partials/PercentDoneSelect.vue'
 import EffortSelect from '@/components/tasks/partials/EffortSelect.vue'
@@ -1191,6 +1225,7 @@ type FieldType =
 	| 'dueDate'
 	| 'endDate'
 	| 'labels'
+	| 'milestone'
 	| 'moveProject'
 	| 'percentDone'
 	| 'effort'
@@ -1208,6 +1243,7 @@ const activeFields: { [type in FieldType]: boolean } = reactive({
 	dueDate: false,
 	endDate: false,
 	labels: false,
+	milestone: false,
 	moveProject: false,
 	percentDone: false,
 	effort: false,
@@ -1230,6 +1266,7 @@ function setActiveFields() {
 	activeFields.dueDate = task.value.dueDate !== null
 	activeFields.endDate = task.value.endDate !== null
 	activeFields.labels = task.value.labels.length > 0
+	activeFields.milestone = task.value.milestone !== null
 	activeFields.percentDone = task.value.percentDone > 0
 	activeFields.effort = task.value.effort > 0
 	activeFields.priority = task.value.priority !== PRIORITIES.UNSET
@@ -1247,6 +1284,7 @@ const activeFieldElements: { [id in FieldType]: HTMLElement | null } = reactive(
 	dueDate: null,
 	endDate: null,
 	labels: null,
+	milestone: null,
 	moveProject: null,
 	percentDone: null,
 	effort: null,
@@ -1437,6 +1475,16 @@ async function setPriority(priority: Priority) {
 	const newTask: ITask = {
 		...task.value,
 		priority,
+	}
+
+	return saveTask(newTask)
+}
+
+async function setMilestone(milestone: IMilestone | null) {
+	const newTask: ITask = {
+		...task.value,
+		milestone,
+		milestoneId: milestone?.id ?? 0,
 	}
 
 	return saveTask(newTask)

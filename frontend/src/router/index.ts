@@ -290,6 +290,14 @@ const router = createRouter({
 			},
 		},
 		{
+			path: '/projects/:projectId/settings/milestones',
+			name: 'project.settings.milestones',
+			component: () => import('@/views/project/settings/ProjectSettingsMilestones.vue'),
+			meta: {
+				showAsModal: true,
+			},
+		},
+		{
 			path: '/projects/:projectId/settings/delete',
 			name: 'project.settings.delete',
 			component: () => import('@/views/project/settings/ProjectSettingsDelete.vue'),

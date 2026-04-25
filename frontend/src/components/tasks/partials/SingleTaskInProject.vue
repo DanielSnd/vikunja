@@ -70,7 +70,6 @@
 						</RouterLink>
 					</TaskGlanceTooltip>
 				</span>
-
 			</div>
 
 
@@ -81,88 +80,96 @@
 			/>
 
 
-				<Labels
-					v-if="task.labels.length > 0"
-					class="labels mis-2 mie-1"
-					:labels="task.labels"
-				/>
+			<Labels
+				v-if="task.labels.length > 0"
+				class="labels mis-2 mie-1"
+				:labels="task.labels"
+			/>
 
-				<AssigneeList
-					v-if="task.assignees.length > 0"
-					:assignees="task.assignees"
-					:avatar-size="25"
-					class="mis-1"
-					:inline="true"
-				/>
+			<span
+				v-if="task.milestone"
+				class="tag milestone-tag mis-1"
+				:style="task.milestone.hexColor ? {backgroundColor: task.milestone.hexColor, color: 'var(--white)'} : {}"
+			>
+				{{ task.milestone.name }}
+			</span>
+
+			<AssigneeList
+				v-if="task.assignees.length > 0"
+				:assignees="task.assignees"
+				:avatar-size="25"
+				class="mis-1"
+				:inline="true"
+			/>
 
 
-				<EffortLabel
-						v-if="task.effort"
-						:effort="task.effort"
-						:done="task.done"
-						class="effort-indicator"
+			<EffortLabel
+				v-if="task.effort"
+				:effort="task.effort"
+				:done="task.done"
+				class="effort-indicator"
+			/>
+
+			<Popup
+				v-if="+new Date(task.dueDate) > 0"
+			>
+				<template #trigger="{toggle, isOpen}">
+					<BaseButton
+						v-tooltip="formatDateLong(task.dueDate)"
+						class="dueDate"
+						@click.prevent.stop="toggle()"
+					>	
+						<time
+							:datetime="formatISO(task.dueDate)"
+							class="is-italic"
+							:aria-expanded="isOpen ? 'true' : 'false'"
+						>
+							– {{ $t('task.detail.due', {at: dueDateFormatted}) }}
+						</time>
+					</BaseButton>
+				</template>
+				<template #content="{isOpen}">
+					<DeferTask
+						v-if="isOpen"
+						v-model="task"
+						@update:modelValue="deferTaskUpdate"
 					/>
+				</template>
+			</Popup>
 
-				<Popup
-					v-if="+new Date(task.dueDate) > 0"
+			<span>
+				<span
+					v-if="task.attachments.length > 0"
+					class="project-task-icon"
 				>
-					<template #trigger="{toggle, isOpen}">
-						<BaseButton
-							v-tooltip="formatDateLong(task.dueDate)"
-							class="dueDate"
-							@click.prevent.stop="toggle()"
-						>	
-							<time
-								:datetime="formatISO(task.dueDate)"
-								class="is-italic"
-								:aria-expanded="isOpen ? 'true' : 'false'"
-							>
-								– {{ $t('task.detail.due', {at: dueDateFormatted}) }}
-							</time>
-						</BaseButton>
-					</template>
-					<template #content="{isOpen}">
-						<DeferTask
-							v-if="isOpen"
-							v-model="task"
-							@update:modelValue="deferTaskUpdate"
-						/>
-					</template>
-				</Popup>
-
-				<span>
-					<span
-						v-if="task.attachments.length > 0"
-						class="project-task-icon"
-					>
-						<Icon icon="paperclip" />
-					</span>
-					<span
-						v-if="isRepeating"
-						class="project-task-icon"
-					>
-						<Icon icon="history" />
-					</span>
-					<CommentCount
-						:task="task"
-						class="project-task-icon"
-					/>
+					<Icon icon="paperclip" />
 				</span>
-
-
-				<Blocked
-					class="kanban-card__blocked"
-					:is-blocked="task.status === 2"
-					variant="small"
+				<span
+					v-if="isRepeating"
+					class="project-task-icon"
+				>
+					<Icon icon="history" />
+				</span>
+				<CommentCount
+					:task="task"
+					class="project-task-icon"
 				/>
+			</span>
 
-				<Review
-					class="kanban-card__review"
-					:is-review="task.status === 3"
-					variant="small"
-				/>
 
-				<ChecklistSummary :task="task" />
+			<Blocked
+				class="kanban-card__blocked"
+				:is-blocked="task.status === 2"
+				variant="small"
+			/>
+
+			<Review
+				class="kanban-card__review"
+				:is-review="task.status === 3"
+				variant="small"
+			/>
+
+			<ChecklistSummary :task="task" />
 
 			<ColorBubble
 				v-if="showProjectSeparately && projectColor !== '' && currentProject?.id !== task.projectId"
@@ -245,7 +252,6 @@ import {useTaskStore} from '@/stores/tasks'
 import AssigneeList from '@/components/tasks/partials/AssigneeList.vue'
 import {useIntervalFn} from '@vueuse/core'
 import {playPopSound} from '@/helpers/playPop'
-import {isEditorContentEmpty} from '@/helpers/editorContentEmpty'
 import {TASK_REPEAT_MODES} from '@/types/IRepeatMode'
 import {useGlobalNow} from '@/composables/useGlobalNow'
 import Blocked from '@/components/misc/Blocked.vue'
@@ -601,6 +607,10 @@ defineExpose({
 
 .subtask-nested {
 	margin-inline-start: 1.75rem;
+}
+
+.milestone-tag {
+	margin: .25rem 0;
 }
 
 :deep(.popup) {

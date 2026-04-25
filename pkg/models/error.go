@@ -528,6 +528,33 @@ func (err *ErrProjectViewDoesNotExist) HTTPError() web.HTTPError {
 	}
 }
 
+// ErrMilestoneDoesNotExist represents an error where a milestone does not exist.
+type ErrMilestoneDoesNotExist struct {
+	ID int64
+}
+
+// IsErrMilestoneDoesNotExist checks if an error is ErrMilestoneDoesNotExist.
+func IsErrMilestoneDoesNotExist(err error) bool {
+	_, ok := err.(ErrMilestoneDoesNotExist)
+	return ok
+}
+
+func (err ErrMilestoneDoesNotExist) Error() string {
+	return fmt.Sprintf("The milestone does not exist. [ID: %d]", err.ID)
+}
+
+// ErrCodeMilestoneDoesNotExist holds the unique world-error code of this error.
+const ErrCodeMilestoneDoesNotExist = 3015
+
+// HTTPError holds the http error description.
+func (err ErrMilestoneDoesNotExist) HTTPError() web.HTTPError {
+	return web.HTTPError{
+		HTTPCode: http.StatusNotFound,
+		Code:     ErrCodeMilestoneDoesNotExist,
+		Message:  "This milestone does not exist.",
+	}
+}
+
 // ==============
 // Task errors
 // ==============

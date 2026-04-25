@@ -8,6 +8,7 @@ import type {IAttachment} from './IAttachment'
 import type {ISubscription} from './ISubscription'
 import type {IProject} from './IProject'
 import type {IBucket} from './IBucket'
+import type {IMilestone} from './IMilestone'
 
 import type {IRelationKind} from '@/types/IRelationKind'
 import type {IRepeatAfter} from '@/types/IRepeatAfter'
@@ -28,6 +29,8 @@ export interface ITask extends IAbstract {
 	status: Status
 	labels: ILabel[]
 	assignees: IUser[]
+	milestoneId: number
+	milestone: IMilestone | null
 
 	dueDate: Date | null
 	startDate: Date | null

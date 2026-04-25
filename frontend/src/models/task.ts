@@ -7,6 +7,7 @@ import type {IAttachment} from '@/modelTypes/IAttachment'
 import type {IProject} from '@/modelTypes/IProject'
 import type {ISubscription} from '@/modelTypes/ISubscription'
 import type {IBucket} from '@/modelTypes/IBucket'
+import type {IMilestone} from '@/modelTypes/IMilestone'
 
 import type {IRepeatAfter} from '@/types/IRepeatAfter'
 import type {IRelationKind} from '@/types/IRelationKind'
@@ -20,6 +21,7 @@ import LabelModel from './label'
 import UserModel from './user'
 import AttachmentModel from './attachment'
 import SubscriptionModel from './subscription'
+import MilestoneModel from './milestone'
 import type {ITaskReminder} from '@/modelTypes/ITaskReminder'
 import TaskReminderModel from '@/models/taskReminder'
 import TaskCommentModel from '@/models/taskComment.ts'
@@ -67,6 +69,8 @@ export default class TaskModel extends AbstractModel<ITask> implements ITask {
 	status: Status = STATUSES.UNSET
 	labels: ILabel[] = []
 	assignees: IUser[] = []
+	milestoneId = 0
+	milestone: IMilestone | null = null
 
 	dueDate: Date | null = 0
 	startDate: Date | null = 0
@@ -116,6 +120,11 @@ export default class TaskModel extends AbstractModel<ITask> implements ITask {
 		this.assignees = this.assignees.map(a => {
 			return new UserModel(a)
 		})
+
+		if (this.milestone !== null) {
+			this.milestone = new MilestoneModel(this.milestone)
+			this.milestoneId = this.milestone.id
+		}
 
 		this.dueDate = parseDateOrNull(this.dueDate)
 		this.startDate = parseDateOrNull(this.startDate)
@@ -174,4 +183,3 @@ export default class TaskModel extends AbstractModel<ITask> implements ITask {
 		return getHexColor(this.hexColor)
 	}
 }
-

@@ -72,7 +72,7 @@
 </template>
 
 <script lang="ts" setup>
-import {computed, onBeforeUnmount, onMounted, ref, toRef, watch} from 'vue'
+import {computed, nextTick, onBeforeUnmount, onMounted, ref, toRef, watch} from 'vue'
 import flatPickr from 'vue-flatpickr-component'
 import 'flatpickr/dist/flatpickr.css'
 
@@ -97,6 +97,7 @@ const {t} = useI18n({useScope: 'global'})
 
 const date = ref<Date | null>(null)
 const changed = ref(false)
+const flatPickrDate = ref('')
 
 const modelValue = toRef(props, 'modelValue')
 watch(
@@ -126,35 +127,30 @@ function formatDateToFlatpickrString(date: Date): string {
 	return `${year}-${month}-${day} ${hours}:${minutes}`
 }
 
-// Since flatpickr dates are strings, we need to convert them to native date objects.
-// To make that work, we need a separate variable since flatpickr does not have a change event.
-const flatPickrDate = computed({
-	set(newValue: string | Date | null) {
-		if (newValue === null) {
-			date.value = null
+function syncFlatPickrDate() {
+	flatPickrDate.value = date.value
+		? formatDateToFlatpickrString(date.value)
+		: ''
+}
+
+function applyFlatpickrDate() {
+	nextTick(() => {
+		const flatpickrInstance = flatPickrRef.value?.fp
+		if (!flatpickrInstance) {
 			return
 		}
 
-		if (date.value && formatDateToFlatpickrString(date.value) === newValue) {
-			return
-		}
-		date.value = createDateFromString(newValue)
-		updateData()
-	},
-	get() {
-		if (!date.value) {
-			return ''
-		}
-		
-		return formatDateToFlatpickrString(date.value)
-	},
-})
+		flatpickrInstance.setDate(flatPickrDate.value || null, false, 'Y-m-d H:i')
+	})
+}
 
 onMounted(() => {
 	const inputs = flatPickrRef.value?.$el.parentNode.querySelectorAll('.numInputWrapper > input.numInput')
 	inputs?.forEach((i: Element) => {
 		i.addEventListener('input', handleFlatpickrInput)
 	})
+
+	applyFlatpickrDate()
 })
 
 onBeforeUnmount(() => {
@@ -186,13 +182,41 @@ function handleFlatpickrInput(e: Event) {
 	flatPickrDate.value = newDate
 }
 
+watch(
+	flatPickrDate,
+	(newValue) => {
+		if (newValue === null || newValue === '') {
+			if (date.value !== null) {
+				date.value = null
+				updateData()
+			}
+			return
+		}
+
+		const formattedNewValue = typeof newValue === 'string'
+			? newValue
+			: formatDateToFlatpickrString(newValue)
+
+		if (date.value && formatDateToFlatpickrString(date.value) === formattedNewValue) {
+			return
+		}
+
+		date.value = createDateFromString(newValue)
+		updateData()
+	},
+)
 
 function setDateValue(dateString: string | Date | null) {
 	if (dateString === null) {
 		date.value = null
+		syncFlatPickrDate()
+		applyFlatpickrDate()
 		return
 	}
+
 	date.value = createDateFromString(dateString)
+	syncFlatPickrDate()
+	applyFlatpickrDate()
 }
 
 function updateData() {

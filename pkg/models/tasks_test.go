@@ -176,6 +176,32 @@ func TestTask_Create(t *testing.T) {
 			"bucket_id": 22, // default bucket of project 6 but with a position of 2
 		}, false)
 	})
+	t.Run("with milestone", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		s := db.NewSession()
+		defer s.Close()
+
+		milestone := &Milestone{
+			ProjectID: 1,
+			Name:      "Release 1.0",
+		}
+		require.NoError(t, milestone.Create(s, usr))
+
+		task := &Task{
+			Title:       "Lorem",
+			Description: "Lorem Ipsum Dolor",
+			ProjectID:   1,
+			MilestoneID: milestone.ID,
+		}
+		err := task.Create(s, usr)
+		require.NoError(t, err)
+		require.NoError(t, s.Commit())
+
+		db.AssertExists(t, "tasks", map[string]interface{}{
+			"id":           task.ID,
+			"milestone_id": milestone.ID,
+		}, false)
+	})
 }
 
 func TestTask_Update(t *testing.T) {
@@ -261,6 +287,60 @@ func TestTask_Update(t *testing.T) {
 		db.AssertExists(t, "task_buckets", map[string]interface{}{
 			"task_id":   1,
 			"bucket_id": 3,
+		}, false)
+	})
+	t.Run("setting milestone", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		s := db.NewSession()
+		defer s.Close()
+
+		milestone := &Milestone{
+			ProjectID: 1,
+			Name:      "Release 1.0",
+		}
+		require.NoError(t, milestone.Create(s, u))
+
+		task := &Task{
+			ID:          1,
+			MilestoneID: milestone.ID,
+		}
+		err := task.Update(s, u)
+		require.NoError(t, err)
+		require.NoError(t, s.Commit())
+
+		db.AssertExists(t, "tasks", map[string]interface{}{
+			"id":           1,
+			"milestone_id": milestone.ID,
+		}, false)
+	})
+	t.Run("moving task between projects clears milestone", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		s := db.NewSession()
+		defer s.Close()
+
+		milestone := &Milestone{
+			ProjectID: 1,
+			Name:      "Release 1.0",
+		}
+		require.NoError(t, milestone.Create(s, u))
+
+		_, err := s.Where("id = ?", 1).
+			Cols("milestone_id").
+			Update(&Task{MilestoneID: milestone.ID})
+		require.NoError(t, err)
+
+		task := &Task{
+			ID:        1,
+			ProjectID: 2,
+		}
+		err = task.Update(s, u)
+		require.NoError(t, err)
+		require.NoError(t, s.Commit())
+
+		db.AssertExists(t, "tasks", map[string]interface{}{
+			"id":           1,
+			"project_id":   2,
+			"milestone_id": 0,
 		}, false)
 	})
 	t.Run("marking a task as done should fire exactly ONE task.updated event", func(t *testing.T) {

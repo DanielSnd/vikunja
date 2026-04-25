@@ -70,6 +70,13 @@
 					class="card-progress"
 					:value="task.percentDone * 100"
 				/>
+
+				<span
+					v-if="task.milestone"
+					v-tooltip="task.milestone.name"
+					class="milestone-diamond"
+					:style="task.milestone.hexColor ? {backgroundColor: task.milestone.hexColor} : undefined"
+				/>
 			</div>
 		</div>
 
@@ -497,11 +504,13 @@ $task-background: var(--white);
 
 // Card Header
 .card-header {
+	position: relative;
 	padding: 0.75rem;
 	display: flex;
 	flex-direction: column;
 	gap: 0.5rem;
 	flex: 1;
+	padding-bottom: 1.25rem;
 }
 
 .card-badges {
@@ -601,6 +610,19 @@ $task-background: var(--white);
 	margin-top: 0.5rem;
 	width: 100%;
 	height: 0.375rem;
+}
+
+.milestone-diamond {
+	position: absolute;
+	inset-inline-end: 0.75rem;
+	inset-block-end: 0.55rem;
+	inline-size: 0.7rem;
+	block-size: 0.7rem;
+	background: var(--primary);
+	border: 2px solid rgba(255, 255, 255, 0.9);
+	border-radius: 2px;
+	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28);
+	transform: rotate(45deg);
 }
 
 // Card Footer

@@ -91,6 +91,9 @@ type Task struct {
 	Assignees []*user.User `xorm:"-" json:"assignees"`
 	// An array of labels which are associated with this task. This property is read-only, you must use the separate endpoint to add labels to a task.
 	Labels []*Label `xorm:"-" json:"labels"`
+	// The milestone this task belongs to.
+	MilestoneID int64      `xorm:"bigint null" json:"milestone_id"`
+	Milestone   *Milestone `xorm:"-" json:"milestone,omitempty"`
 	// The task color in hex
 	HexColor string `xorm:"varchar(6) null" json:"hex_color" valid:"runelength(0|7)" maxLength:"7"`
 	// Determines how far a task is left from being done
@@ -519,6 +522,62 @@ func addLabelsToTasks(s *xorm.Session, taskIDs []int64, taskMap map[int64]*Task)
 	return
 }
 
+func addMilestonesToTasks(s *xorm.Session, taskMap map[int64]*Task) error {
+	milestoneIDs := []int64{}
+	for _, task := range taskMap {
+		if task.MilestoneID == 0 {
+			continue
+		}
+		milestoneIDs = append(milestoneIDs, task.MilestoneID)
+	}
+
+	if len(milestoneIDs) == 0 {
+		return nil
+	}
+
+	milestones := []*Milestone{}
+	err := s.In("id", milestoneIDs).Find(&milestones)
+	if err != nil {
+		return err
+	}
+
+	if err := addUsersToMilestones(s, milestones); err != nil {
+		return err
+	}
+
+	milestoneMap := make(map[int64]*Milestone, len(milestones))
+	for _, milestone := range milestones {
+		milestoneMap[milestone.ID] = milestone
+	}
+
+	for _, task := range taskMap {
+		if task.MilestoneID == 0 {
+			continue
+		}
+
+		task.Milestone = milestoneMap[task.MilestoneID]
+	}
+
+	return nil
+}
+
+func validateMilestoneForTask(s *xorm.Session, projectID, milestoneID int64) (*Milestone, error) {
+	if milestoneID == 0 {
+		return nil, nil
+	}
+
+	milestone, err := getMilestoneSimpleByID(s, milestoneID)
+	if err != nil {
+		return nil, err
+	}
+
+	if milestone.ProjectID != projectID {
+		return nil, InvalidFieldErrorWithMessage([]string{"milestone_id"}, "The milestone must belong to the same project as the task.")
+	}
+
+	return milestone, nil
+}
+
 // Get task attachments
 func addAttachmentsToTasks(s *xorm.Session, taskIDs []int64, taskMap map[int64]*Task) (err error) {
 	attachments, err := getTaskAttachmentsByTaskIDs(s, taskIDs)
@@ -671,6 +730,11 @@ func addMoreInfoToTasks(s *xorm.Session, taskMap map[int64]*Task, a web.Auth, vi
 	}
 
 	err = addLabelsToTasks(s, taskIDs, taskMap)
+	if err != nil {
+		return
+	}
+
+	err = addMilestonesToTasks(s, taskMap)
 	if err != nil {
 		return
 	}
@@ -933,6 +997,9 @@ func createTask(s *xorm.Session, t *Task, a web.Auth, updateAssignees bool, setB
 	if err != nil {
 		return err
 	}
+	if _, err = validateMilestoneForTask(s, t.ProjectID, t.MilestoneID); err != nil {
+		return err
+	}
 
 	createdBy, err := GetUserOrLinkShareUser(s, a)
 	if err != nil {
@@ -1171,6 +1238,7 @@ func (t *Task) updateSingleTask(s *xorm.Session, a web.Auth, fields []string) (e
 		"effort",
 		"project_id",
 		"bucket_id",
+		"milestone_id",
 		"repeat_mode",
 		"cover_image_attachment_id",
 	}
@@ -1235,6 +1303,9 @@ func (t *Task) updateSingleTask(s *xorm.Session, a web.Auth, fields []string) (e
 		if !fieldSet["bucket_id"] {
 			t.BucketID = ot.BucketID
 		}
+		if !fieldSet["milestone_id"] {
+			t.MilestoneID = ot.MilestoneID
+		}
 		if !fieldSet["repeat_mode"] {
 			t.RepeatMode = ot.RepeatMode
 		}
@@ -1277,7 +1348,17 @@ func (t *Task) updateSingleTask(s *xorm.Session, a web.Auth, fields []string) (e
 			return err
 		}
 		t.BucketID = 0
+
+		// Milestones are project-scoped, so carrying over the old milestone across projects would break the relation.
+		if t.MilestoneID == 0 || t.MilestoneID == ot.MilestoneID {
+			t.MilestoneID = 0
+		}
+
 		colsToUpdate = append(colsToUpdate, "index")
+	}
+
+	if _, err = validateMilestoneForTask(s, t.ProjectID, t.MilestoneID); err != nil {
+		return err
 	}
 
 	views := []*ProjectView{}
@@ -1452,6 +1533,9 @@ func (t *Task) updateSingleTask(s *xorm.Session, a web.Auth, fields []string) (e
 	// Start date
 	if t.StartDate.IsZero() {
 		ot.StartDate = time.Time{}
+	}
+	if t.MilestoneID == 0 {
+		ot.MilestoneID = 0
 	}
 	// End date
 	if t.EndDate.IsZero() {

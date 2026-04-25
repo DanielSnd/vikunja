@@ -459,6 +459,7 @@
       "resizeStartDate": "Resize start date for task {task}",
       "resizeEndDate": "Resize end date for task {task}",
       "timelineHeader": "Timeline header with months and days",
+      "milestonesRow": "Milestones on the timeline",
       "monthsRow": "Months row",
       "daysRow": "Days row",
       "monthLabel": "Month: {month}",
@@ -501,7 +502,9 @@
       "bucketLimitSavedSuccess": "The bucket limit been saved successfully.",
       "collapse": "Collapse this bucket",
       "bucketLimitReached": "You have reached the bucket limit. Remove tasks or increase the limit to add new tasks.",
-      "bucketOptions": "Bucket options"
+      "bucketOptions": "Bucket options",
+      "hideDoneCards": "Hide done cards",
+      "showDoneCards": "Show done cards"
     },
     "pseudo": {
       "favorites": {
@@ -525,6 +528,23 @@
       "basicauthlink": "Use Basic Auth?",
       "secretHint": "If provided, all requests to the webhook target URL will be signed using HMAC.",
       "secretDocs": "Check out the docs for more details about how to use secrets."
+    },
+    "milestones": {
+      "title": "Milestones",
+      "create": "Create milestone",
+      "edit": "Edit milestone",
+      "existing": "Existing milestones",
+      "empty": "This project does not have any milestones yet.",
+      "name": "Name",
+      "namePlaceholder": "Release 1.0, Beta, Launch…",
+      "date": "Milestone date",
+      "color": "Color",
+      "users": "Assigned users",
+      "usersPlaceholder": "Type to search users…",
+      "createSuccess": "The milestone was created successfully.",
+      "updateSuccess": "The milestone was updated successfully.",
+      "deleteSuccess": "The milestone was deleted successfully.",
+      "deleteText": "Are you sure you want to delete the milestone \"{milestone}\"?"
     },
     "views": {
       "header": "Edit views",
@@ -920,6 +940,10 @@
     "readOnlyCheckbox": "You only have read access to this task and cannot mark it as done.",
     "movedToProject": "The task was moved to {project}.",
     "undo": "Undo",
+    "openDetail": "Open task detail view",
+    "milestone": {
+      "placeholder": "Type to search for a milestone…"
+    },
     "checklistTotal": "{checked} of {total} tasks",
     "checklistAllDone": "{total} tasks",
     "show": {
@@ -970,6 +994,7 @@
       "actions": {
         "assign": "Assign to User",
         "label": "Add Labels",
+        "milestone": "Set Milestone",
         "priority": "Set Priority",
         "status": "Set Status",
         "dueDate": "Set Due Date",
@@ -999,6 +1024,7 @@
       "dueDate": "Due Date",
       "endDate": "End Date",
       "labels": "Labels",
+      "milestone": "Milestone",
       "percentDone": "Progress",
       "priority": "Priority",
       "effort": "Effort",

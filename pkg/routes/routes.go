@@ -667,6 +667,17 @@ func registerAPIRoutes(a *echo.Group) {
 	a.DELETE("/projects/:project/users/:user", projectUserHandler.DeleteWeb)
 	a.POST("/projects/:project/users/:user", projectUserHandler.UpdateWeb)
 
+	projectMilestoneHandler := &handler.WebHandler{
+		EmptyStruct: func() handler.CObject {
+			return &models.Milestone{}
+		},
+	}
+	a.GET("/projects/:project/milestones", projectMilestoneHandler.ReadAllWeb)
+	a.PUT("/projects/:project/milestones", projectMilestoneHandler.CreateWeb)
+	a.GET("/projects/:project/milestones/:milestone", projectMilestoneHandler.ReadOneWeb)
+	a.POST("/projects/:project/milestones/:milestone", projectMilestoneHandler.UpdateWeb)
+	a.DELETE("/projects/:project/milestones/:milestone", projectMilestoneHandler.DeleteWeb)
+
 	savedFiltersHandler := &handler.WebHandler{
 		EmptyStruct: func() handler.CObject {
 			return &models.SavedFilter{}

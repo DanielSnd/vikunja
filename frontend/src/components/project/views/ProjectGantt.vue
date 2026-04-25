@@ -49,6 +49,7 @@
 				>
 					<GanttChart
 						:filters="filters"
+						:milestones="milestones"
 						:tasks="tasks"
 						:is-loading="isLoading"
 						:default-task-start-date="defaultTaskStartDate"
@@ -66,7 +67,7 @@
 </template>
 
 <script setup lang="ts">
-import {computed, ref, toRefs} from 'vue'
+import {computed, ref, shallowReactive, toRefs, watch} from 'vue'
 import type Flatpickr from 'flatpickr'
 import {useI18n} from 'vue-i18n'
 import type {RouteLocationNormalized} from 'vue-router'
@@ -87,6 +88,8 @@ import {PERMISSIONS} from '@/constants/permissions'
 import type {DateISO} from '@/types/DateISO'
 import type {ITask} from '@/modelTypes/ITask'
 import type {IProjectView} from '@/modelTypes/IProjectView'
+import type {IMilestone} from '@/modelTypes/IMilestone'
+import MilestoneService from '@/services/milestone'
 
 type Options = Flatpickr.Options.Options
 
@@ -110,6 +113,22 @@ const {
 	addTask,
 	updateTask,
 } = useGanttFilters(route, viewId)
+
+const milestoneService = shallowReactive(new MilestoneService())
+const milestones = ref<IMilestone[]>([])
+
+watch(
+	() => filters.value.projectId,
+	async projectId => {
+		if (!projectId || projectId < 1) {
+			milestones.value = []
+			return
+		}
+
+		milestones.value = await milestoneService.getAll({projectId})
+	},
+	{immediate: true},
+)
 
 const DEFAULT_DATE_RANGE_DAYS = 7
 
