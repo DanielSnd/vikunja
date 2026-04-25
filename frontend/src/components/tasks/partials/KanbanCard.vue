@@ -8,6 +8,7 @@
 			'has-light-text': !colorIsDark(color),
 			'has-custom-background-color': color ?? undefined,
 			'is-tilting': tiltActive,
+			'is-selected': selected,
 		}"
 		:style="cardStyle"
 		:data-task-id="task.id"
@@ -20,6 +21,20 @@
 		@mousemove="handleMouseMove"
 		@mouseleave="resetTilt"
 	>
+		<label
+			v-if="selectable"
+			class="selection-toggle"
+			@click.stop
+			@mousedown.stop
+		>
+			<input
+				:checked="selected"
+				type="checkbox"
+				@click.stop
+				@change.stop="toggleSelected"
+			>
+			<span class="selection-toggle__indicator" />
+		</label>
 		<!-- Card Main Content Area -->
 		<div 
 			class="card-main"
@@ -86,23 +101,17 @@
 			:class="`status-${task.done ? 4 : (task.status || 0)}`"
 		>
 			<div class="footer-left">
+				<span
+					v-if="task.done"
+					v-tooltip="$t('task.attributes.done')"
+					class="done-indicator"
+					:aria-label="$t('task.attributes.done')"
+				>
+					<Icon icon="check" />
+				</span>
+
 				<!-- Task ID / Done indicator -->
 				<span class="task-id-badge">
-					<Done
-						class="kanban-card__done"
-						:is-done="task.done"
-						variant="small"
-					/>
-					<Blocked
-						class="kanban-card__blocked"
-						:is-blocked="task.status === 2"
-						variant="small"
-					/>
-					<Review
-						class="kanban-card__review"
-						:is-review="task.status === 3"
-						variant="small"
-					/>
 					<!-- <template v-if="task.identifier === ''">
 						#{{ task.index }}
 					</template>
@@ -145,28 +154,32 @@
 						:task="task"
 						class="meta-icon"
 					/>
-					<ChecklistSummary
-						:task="task"
-						class="meta-icon checklist"
-					/>
 				</div>
 			</div>
 
+			<div
+				v-if="task.assignees.length > 0"
+				class="footer-center"
+			>
+				<AssigneeList
+					:assignees="task.assignees"
+					:avatar-size="38"
+					class="card-assignees"
+				/>
+			</div>
+
 			<div class="footer-right">
+				<ChecklistSummary
+					:task="task"
+					class="meta-icon checklist"
+				/>
+
 				<!-- Priority -->
 				<PriorityLabel
 					v-if="task.priority"
 					:priority="task.priority"
 					:done="task.done"
 					class="priority-indicator"
-				/>
-				
-				<!-- Assignees -->
-				<AssigneeList
-					v-if="task.assignees.length > 0"
-					:assignees="task.assignees"
-					:avatar-size="28"
-					class="card-assignees"
 				/>
 			</div>
 		</div>
@@ -182,7 +195,6 @@ import {useGlobalNow} from '@/composables/useGlobalNow'
 import PriorityLabel from '@/components/tasks/partials/PriorityLabel.vue'
 import EffortLabel from '@/components/tasks/partials/EffortLabel.vue'
 import ProgressBar from '@/components/misc/ProgressBar.vue'
-import Done from '@/components/misc/Done.vue'
 import Labels from '@/components/tasks/partials/Labels.vue'
 import ChecklistSummary from './ChecklistSummary.vue'
 import CommentCount from './CommentCount.vue'
@@ -200,22 +212,25 @@ import AssigneeList from '@/components/tasks/partials/AssigneeList.vue'
 import {playPopSound} from '@/helpers/playPop'
 import {useProjectStore} from '@/stores/projects'
 import {TASK_REPEAT_MODES} from '@/types/IRepeatMode'
-import Blocked from '@/components/misc/Blocked.vue'
-import Review from '@/components/misc/Review.vue'
 
 const props = withDefaults(defineProps<{
 	task: ITask,
 	projectId: IProject['id'],
 	loading?: boolean,
 	openBehavior?: 'route' | 'emit',
+	selectable?: boolean,
+	selected?: boolean,
 }>(), {
 	loading: false,
 	openBehavior: 'route',
+	selectable: false,
+	selected: false,
 })
 
 const emit = defineEmits<{
 	'taskCompletedRecurring': [task: ITask],
 	'open': [task: ITask],
+	'toggleSelected': [task: ITask],
 }>()
 
 const router = useRouter()
@@ -346,6 +361,10 @@ function openTaskDetail() {
 	})
 }
 
+function toggleSelected() {
+	emit('toggleSelected', props.task)
+}
+
 const coverImageBlobUrl = ref<string | null>(null)
 
 async function maybeDownloadCoverImage() {
@@ -393,10 +412,12 @@ $task-background: var(--white);
 	cursor: pointer;
 	display: flex;
 	flex-direction: column;
+	position: relative;
+	isolation: isolate;
 	font-size: .9rem;
 	border-radius: $radius;
 	background: $task-background;
-	overflow: hidden;
+	overflow: visible;
 	transform: perspective(900px) rotateX(var(--kanban-card-rotate-x)) rotateY(var(--kanban-card-rotate-y)) translateY(0);
 	transform-style: preserve-3d;
 	will-change: transform, box-shadow;
@@ -422,6 +443,13 @@ $task-background: var(--white);
 		&.is-tilting {
 			transform: perspective(900px) rotateX(var(--kanban-card-rotate-x)) rotateY(var(--kanban-card-rotate-y)) translateY(-4px);
 		}
+	}
+
+	&:hover .selection-toggle,
+	&.is-selected .selection-toggle,
+	.selection-toggle:focus-within {
+		opacity: 1;
+		pointer-events: auto;
 	}
 
 	&.loader-container.is-loading::after {
@@ -462,12 +490,96 @@ $task-background: var(--white);
 	}
 }
 
+.selection-toggle {
+	position: absolute;
+	inset-block-start: -.7rem;
+	inset-inline-start: -.7rem;
+	z-index: 8;
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.18s ease;
+	inline-size: 2rem;
+	block-size: 2rem;
+	display: grid;
+	place-items: center;
+	filter: drop-shadow(0 8px 16px rgba(15, 23, 42, 0.18));
+
+	input {
+		cursor: pointer;
+		position: absolute;
+		inset: 0;
+		margin: 0;
+		opacity: 0;
+	}
+
+	&__indicator {
+		inline-size: 2rem;
+		block-size: 2rem;
+		border-radius: 999px;
+		border: 2px solid color-mix(in srgb, var(--primary) 70%, var(--grey-300));
+		background:
+			radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.72) 45%, rgba(255, 255, 255, 0.35) 100%),
+			var(--white);
+		box-shadow:
+			0 10px 20px rgba(15, 23, 42, 0.14),
+			inset 0 1px 0 rgba(255, 255, 255, 0.85);
+		display: grid;
+		place-items: center;
+		transition:
+			transform 0.18s ease,
+			box-shadow 0.18s ease,
+			background-color 0.18s ease,
+			border-color 0.18s ease;
+
+		&::after {
+			content: '';
+			inline-size: .55rem;
+			block-size: 1rem;
+			border: solid transparent;
+			border-width: 0 .18rem .18rem 0;
+			transform: rotate(45deg) scale(0.7);
+			opacity: 0;
+			transition:
+				opacity 0.18s ease,
+				transform 0.18s ease,
+				border-color 0.18s ease;
+		}
+	}
+
+	&:hover &__indicator {
+		transform: scale(1.06);
+		box-shadow:
+			0 14px 24px rgba(15, 23, 42, 0.18),
+			inset 0 1px 0 rgba(255, 255, 255, 0.92);
+	}
+
+	input:checked + &__indicator {
+		border-color: color-mix(in srgb, var(--primary) 88%, white);
+		background:
+			radial-gradient(circle at 30% 30%, color-mix(in srgb, white 48%, var(--primary) 52%), var(--primary));
+		box-shadow:
+			0 14px 28px color-mix(in srgb, var(--primary) 26%, transparent),
+			inset 0 1px 0 rgba(255, 255, 255, 0.4);
+	}
+
+	input:checked + &__indicator::after {
+		opacity: 1;
+		transform: rotate(45deg) scale(1);
+		border-color: var(--white);
+	}
+}
+
 // Card Main Content
 .card-main {
 	flex: 1;
 	display: flex;
 	flex-direction: column;
 	min-height: 0;
+	position: relative;
+	z-index: 1;
+	overflow: hidden;
+	border-start-start-radius: inherit;
+	border-start-end-radius: inherit;
 	transform: translateZ(18px);
 	background: hsl(216, 19.2%, 20.4%);
 
@@ -614,10 +726,10 @@ $task-background: var(--white);
 
 .milestone-diamond {
 	position: absolute;
-	inset-inline-end: 0.75rem;
-	inset-block-end: 0.55rem;
-	inline-size: 0.7rem;
-	block-size: 0.7rem;
+	inset-inline-end: .875rem;
+	inset-block-end: .855rem;
+	inline-size: .8rem;
+	block-size: 0.8rem;
 	background: var(--primary);
 	border: 2px solid rgba(255, 255, 255, 0.9);
 	border-radius: 2px;
@@ -627,39 +739,48 @@ $task-background: var(--white);
 
 // Card Footer
 .card-footer {
+	--kanban-footer-color: var(--grey-50);
+
+	position: relative;
+	z-index: 1;
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
 	gap: 0.5rem;
-	padding: 0.5rem 0.75rem;
+	padding: 0.65rem 0.75rem 0.5rem;
 	background: var(--grey-50);
 	border-top: 1px solid var(--grey-200);
 	min-height: 48px;
 	transform: translateZ(28px);
 
 	&.status-0 {
+		--kanban-footer-color: hsl(210, 2.5%, 31.4%);
 		background:hsl(210, 2.5%, 31.4%);
 		border-top-color: hsl(200, 4%, 43%);
 	}
 	
 	&.status-1 {
+		--kanban-footer-color: hsl(220, 70%, 50%);
 		background: hsl(220, 70%, 50%); // navy blue
 		border-top-color: hsl(220, 82%, 78%);
 	}
 	
 	&.status-2 {
+		--kanban-footer-color: hsl(0, 70%, 50%);
 		background: hsl(0, 70%, 50%); // red
 		border-top-color: hsl(0, 82%, 78%);
 
 	}
 	
 	&.status-3 {
+		--kanban-footer-color: hsl(180, 70%, 40%);
 		background: hsl(180, 70%, 40%); // teal
 		border-top-color: hsl(180, 82%, 78%);
 
 	}
 	
 	&.status-4 {
+		--kanban-footer-color: hsl(140, 60%, 40%);
 		background: hsl(140, 60%, 40%); // green
 		border-top-color: hsl(140, 82%, 78%);
 
@@ -674,35 +795,56 @@ $task-background: var(--white);
 	min-width: 0;
 }
 
+.footer-center {
+	position: absolute;
+	inset-inline-start: 50%;
+	inset-block-start: 0;
+	transform: translate(-50%, -26%);
+	z-index: 2;
+	display: flex;
+	justify-content: center;
+	pointer-events: none;
+
+	.card-assignees {
+		pointer-events: auto;
+	}
+}
+
 .footer-right {
 	display: flex;
 	align-items: center;
 	gap: 0.5rem;
+	margin-inline-start: auto;
 	flex-shrink: 0;
 }
 
 .task-id-badge {
 	display: inline-flex;
 	align-items: center;
-	padding: 0.125rem 0.375rem;
+	padding: 0.01rem 0.025rem;
 	// background: var(--grey-200);
 	border-radius: calc($radius / 1.5);
-	font-size: 1.0rem;
+	font-size: 1.1rem;
 	color: var(--grey-600);
 	font-weight: 500;
 	flex-shrink: 0;
 }
 
-.kanban-card__done {
-	margin-inline-end: 0.25rem;
-}
+.done-indicator {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 2rem;
+	height: 2rem;
+	border-radius: 12px;
+	background: hsl(123.2, 62.4%, 29.2%);
+	color: #b7e0c5;
+	flex-shrink: 0;
+	box-shadow: 0 3px 8px rgba(15, 23, 42, 0.18);
 
-.kanban-card__blocked {
-	margin-inline-end: 0.25rem;
-}
-
-.kanban-card__review {
-	margin-inline-end: 0.25rem;
+	.icon {
+		font-size: 1.1rem;
+	}
 }
 
 .metadata-icons {
@@ -757,18 +899,31 @@ $task-background: var(--white);
 }
 
 .card-assignees {
+	:deep(.assignee) {
+		&:not(:first-child) {
+			margin-inline-start: -0.75rem;
+		}
+	}
+
 	:deep(.user) {
 		margin: 0;
-		// border: 2px solid var(--white);
 		
 		&:not(:first-child) {
 			margin-left: -0.5rem;
 		}
-		
+
 		img {
-			width: 28px;
-			height: 28px;
+			width: 46px;
+			height: 46px;
+			border: 3px solid var(--kanban-footer-color);
+			box-shadow: 0 3px 6px rgba(15, 23, 42, 0.2);
 		}
+	}
+
+	:deep(.user img) {
+		border-color: var(--kanban-footer-color);
+		
+		margin-inline-end: 0;
 	}
 }
 

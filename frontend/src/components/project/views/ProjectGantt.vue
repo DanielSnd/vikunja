@@ -54,7 +54,9 @@
 						:is-loading="isLoading"
 						:default-task-start-date="defaultTaskStartDate"
 						:default-task-end-date="defaultTaskEndDate"
+						:selected-milestone-id="selectedMilestoneId"
 						@update:task="updateTask"
+						@selectMilestone="toggleMilestone"
 					/>
 					<TaskForm
 						v-if="canWrite"
@@ -62,6 +64,14 @@
 					/>
 				</Card>
 			</div>
+
+			<GanttMilestoneDetails
+				v-if="selectedMilestone"
+				:milestone="selectedMilestone"
+				:tasks="selectedMilestoneTasks"
+				:is-loading="isLoadingMilestoneTasks"
+				@close="selectedMilestoneId = null"
+			/>
 		</template>
 	</ProjectWrapper>
 </template>
@@ -82,6 +92,7 @@ import TaskForm from '@/components/tasks/TaskForm.vue'
 import FormField from '@/components/input/FormField.vue'
 
 import GanttChart from '@/components/gantt/GanttChart.vue'
+import GanttMilestoneDetails from '@/components/gantt/GanttMilestoneDetails.vue'
 import {useGanttFilters} from '../../../views/project/helpers/useGanttFilters'
 import {PERMISSIONS} from '@/constants/permissions'
 
@@ -90,6 +101,7 @@ import type {ITask} from '@/modelTypes/ITask'
 import type {IProjectView} from '@/modelTypes/IProjectView'
 import type {IMilestone} from '@/modelTypes/IMilestone'
 import MilestoneService from '@/services/milestone'
+import TaskCollectionService, {getDefaultTaskFilterParams, type TaskFilterParams} from '@/services/taskCollection'
 
 type Options = Flatpickr.Options.Options
 
@@ -115,7 +127,12 @@ const {
 } = useGanttFilters(route, viewId)
 
 const milestoneService = shallowReactive(new MilestoneService())
+const taskCollectionService = shallowReactive(new TaskCollectionService())
 const milestones = ref<IMilestone[]>([])
+const selectedMilestoneId = ref<IMilestone['id'] | null>(null)
+const selectedMilestoneTasks = ref<ITask[]>([])
+const isLoadingMilestoneTasks = computed(() => taskCollectionService.loading)
+const selectedMilestone = computed(() => milestones.value.find(milestone => milestone.id === selectedMilestoneId.value) ?? null)
 
 watch(
 	() => filters.value.projectId,
@@ -126,6 +143,39 @@ watch(
 		}
 
 		milestones.value = await milestoneService.getAll({projectId})
+		if (selectedMilestoneId.value && !milestones.value.some(milestone => milestone.id === selectedMilestoneId.value)) {
+			selectedMilestoneId.value = null
+		}
+	},
+	{immediate: true},
+)
+
+async function fetchMilestoneTasks(projectId: number, milestoneId: number, page = 1): Promise<ITask[]> {
+	const params: TaskFilterParams = {
+		...getDefaultTaskFilterParams(),
+		sort_by: ['done', 'id'],
+		order_by: ['asc', 'desc'],
+		expand: 'subtasks',
+	}
+
+	const tasks = await taskCollectionService.getAll({projectId}, params, page) as ITask[]
+	const filteredTasks = tasks.filter(task => task.milestoneId === milestoneId)
+	if (page < taskCollectionService.totalPages) {
+		return filteredTasks.concat(await fetchMilestoneTasks(projectId, milestoneId, page + 1))
+	}
+
+	return filteredTasks
+}
+
+watch(
+	() => [filters.value.projectId, selectedMilestoneId.value] as const,
+	async ([projectId, milestoneId]) => {
+		if (!projectId || !milestoneId) {
+			selectedMilestoneTasks.value = []
+			return
+		}
+
+		selectedMilestoneTasks.value = await fetchMilestoneTasks(projectId, milestoneId)
 	},
 	{immediate: true},
 )
@@ -174,6 +224,10 @@ const flatPickerConfig = computed(() => ({
 	mode: 'range',
 	locale: useFlatpickrLanguage().value,
 } as Options))
+
+function toggleMilestone(milestoneId: IMilestone['id']) {
+	selectedMilestoneId.value = selectedMilestoneId.value === milestoneId ? null : milestoneId
+}
 </script>
 
 <style lang="scss" scoped>

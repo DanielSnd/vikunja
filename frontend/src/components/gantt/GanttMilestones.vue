@@ -4,11 +4,16 @@
 		:aria-label="$t('project.gantt.milestonesRow')"
 		:style="{width: `${totalWidth}px`}"
 	>
-		<div
+		<button
 			v-for="milestone in visibleMilestones"
 			:key="milestone.id"
 			class="gantt-milestone"
+			:class="{'gantt-milestone--active': milestone.id === selectedMilestoneId}"
+			type="button"
+			:aria-pressed="milestone.id === selectedMilestoneId"
+			:aria-label="$t('project.gantt.milestoneLabel', {milestone: milestone.name})"
 			:style="{left: `${getMilestoneX(milestone)}px`}"
+			@click="emit('select', milestone.id)"
 		>
 			<div
 				class="gantt-milestone-line"
@@ -16,17 +21,17 @@
 			/>
 			<div
 				class="gantt-milestone-label"
-				:style="{borderColor: milestone.hexColor || undefined, color: milestone.hexColor || undefined}"
+				:style="{color: milestone.hexColor || undefined}"
 			>
 				<span
-					class="gantt-milestone-dot"
+					class="gantt-milestone-diamond"
 					:style="{backgroundColor: milestone.hexColor || undefined}"
 				/>
 				<span>
 					{{ milestone.name }}
 				</span>
 			</div>
-		</div>
+		</button>
 	</div>
 </template>
 
@@ -45,6 +50,11 @@ const props = defineProps<{
 	dayWidthPixels: number
 	height: number
 	totalWidth: number
+	selectedMilestoneId?: IMilestone['id'] | null
+}>()
+
+const emit = defineEmits<{
+	(e: 'select', milestoneId: IMilestone['id']): void
 }>()
 
 const visibleMilestones = computed(() => {
@@ -68,16 +78,29 @@ function getMilestoneX(milestone: IMilestone) {
 <style lang="scss" scoped>
 .gantt-milestones {
 	position: absolute;
-	inset-block-start: 0;
+	inset-block-start: 1.9rem;
 	inset-inline-start: 0;
 	inset-inline-end: 0;
-	pointer-events: none;
-	z-index: 3;
+	z-index: 12;
 }
 
 .gantt-milestone {
 	position: absolute;
 	inset-block-start: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	border: 0;
+	background: transparent;
+	padding: 0;
+	transform: translateX(-50%);
+	cursor: pointer;
+}
+
+.gantt-milestone--active {
+	.gantt-milestone-diamond {
+		box-shadow: 0 0 0 4px color-mix(in srgb, var(--white) 40%, transparent);
+	}
 }
 
 .gantt-milestone-line {
@@ -88,14 +111,11 @@ function getMilestoneX(milestone: IMilestone) {
 
 .gantt-milestone-label {
 	position: absolute;
-	inset-block-start: 0;
-	inset-inline-start: .5rem;
+	inset-block-start: -1.1rem;
 	display: inline-flex;
 	align-items: center;
 	gap: .35rem;
 	padding: .125rem .5rem;
-	border: 1px solid var(--primary);
-	border-radius: 999px;
 	background: color-mix(in srgb, var(--white) 90%, transparent);
 	box-shadow: var(--shadow-sm);
 	font-size: .75rem;
@@ -103,10 +123,13 @@ function getMilestoneX(milestone: IMilestone) {
 	white-space: nowrap;
 }
 
-.gantt-milestone-dot {
-	inline-size: .5rem;
-	block-size: .5rem;
-	border-radius: 50%;
+.gantt-milestone-diamond {
+	inline-size: .8rem;
+	block-size: 0.8rem;
+	border: 2px solid var(--white);
+	border-radius: 2px;
 	background: var(--primary);
+	box-shadow: var(--shadow-sm);
+	transform: rotate(45deg);
 }
 </style>

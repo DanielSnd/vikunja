@@ -94,11 +94,11 @@ func TestGetAvatar(t *testing.T) {
 		svg2 := string(avatar2)
 
 		// Should have the first background color (index 0)
-		assert.Contains(t, svg1, `fill="#e0f8d9"`)
-		assert.Contains(t, svg2, `fill="#e0f8d9"`)
+		assert.Contains(t, svg1, `fill="#314758"`)
+		assert.Contains(t, svg2, `fill="#314758"`)
 		// Should have the first text color (index 0)
-		assert.Contains(t, svg1, `fill="#005f00"`)
-		assert.Contains(t, svg2, `fill="#005f00"`)
+		assert.Contains(t, svg1, `fill="#d7e1ea"`)
+		assert.Contains(t, svg2, `fill="#d7e1ea"`)
 	})
 
 	t.Run("escapes special characters", func(t *testing.T) {

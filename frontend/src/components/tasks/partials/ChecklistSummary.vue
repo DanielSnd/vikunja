@@ -32,7 +32,6 @@
 
 <script setup lang="ts">
 import {computed} from 'vue'
-import { useI18n } from 'vue-i18n'
 
 import {getChecklistStatistics} from '@/helpers/checklistFromText'
 import type {ITask} from '@/modelTypes/ITask'
@@ -54,11 +53,12 @@ const checklistCircleDone = computed(() => {
 
 const allDone = computed(() => checklist.value.total === checklist.value.checked)
 
-const {t} = useI18n({useScope: 'global'})
 const label = computed(() => {
-	return allDone.value
-		? t('task.checklistAllDone', checklist.value)
-		: t('task.checklistTotal', checklist.value)
+	if (allDone.value) {
+		return `${checklist.value.total}/${checklist.value.total}`
+	}
+
+	return `${checklist.value.checked}/${checklist.value.total}`
 })
 </script>
 

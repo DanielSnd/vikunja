@@ -34,21 +34,21 @@ type Provider struct {
 func (p *Provider) FlushCache(_ *user.User) error { return nil }
 
 var avatarBgColors = []string{
-	"#e0f8d9",
-	"#e3f5f8",
-	"#faeefb",
-	"#f1efff",
-	"#ffecf0",
-	"#ffefe4",
+	"#d7e1ea",
+	"#d2dde7",
+	"#dbe2e9",
+	"#d5dee5",
+	"#d8e0e6",
+	"#d3dbe2",
 }
 
 var avatarTextColors = []string{
-	"#005f00",
-	"#00548c",
-	"#822198",
-	"#5d26cd",
-	"#9f0850",
-	"#9b2200",
+	"#4b697f",
+	"#3d4c77",
+	"#5d4f73",
+	"#2e5657",
+	"#31467a",
+	"#412d6b",
 }
 
 // GetAvatar returns an initials avatar for a user as SVG
@@ -68,8 +68,8 @@ func (p *Provider) GetAvatar(u *user.User, size int64) (avatar []byte, mimeType 
 
 	// Select background and text colors based on user ID
 	colorIndex := int(u.ID) % len(avatarBgColors)
-	bgColor := avatarBgColors[colorIndex]
-	textColor := avatarTextColors[colorIndex]
+	bgColor := avatarTextColors[colorIndex]
+	textColor := avatarBgColors[colorIndex]
 
 	// Convert size to string
 	sizeStr := strconv.FormatInt(size, 10)

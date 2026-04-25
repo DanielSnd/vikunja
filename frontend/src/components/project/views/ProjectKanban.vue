@@ -50,6 +50,74 @@
 					:class="{ 'is-loading': loading && !oneTaskUpdating}"
 					class="kanban kanban-content kanban-bucket-container loader-container"
 				>
+					<div
+						v-if="hasSelectedTasks"
+						class="kanban-bulk-actions"
+					>
+						<div class="kanban-bulk-actions__summary">
+							<strong>{{ $t('project.kanban.selectedCards', {count: selectedTasks.length}) }}</strong>
+							<XButton
+								variant="tertiary"
+								:shadow="false"
+								@click="clearSelectedTasks"
+							>
+								{{ $t('project.kanban.clearSelection') }}
+							</XButton>
+						</div>
+						<div class="kanban-bulk-actions__buttons">
+							<XButton
+								variant="secondary"
+								:shadow="false"
+								@click="markSelectedAsDone"
+							>
+								{{ $t('project.kanban.markSelectedDone') }}
+							</XButton>
+							<XButton
+								variant="secondary"
+								:shadow="false"
+								@click="markSelectedAsForReview"
+							>
+								{{ $t('project.kanban.markSelectedForReview') }}
+							</XButton>
+							<XButton
+								variant="secondary"
+								:shadow="false"
+								@click="markSelectedAsUndone"
+							>
+								{{ $t('project.kanban.markSelectedUndone') }}
+							</XButton>
+							<XButton
+								variant="secondary"
+								:shadow="false"
+								@click="openBulkActionDialog('assignee')"
+							>
+								{{ $t('project.kanban.assignSelectedUser') }}
+							</XButton>
+							<XButton
+								variant="secondary"
+								:shadow="false"
+								@click="openBulkActionDialog('milestone')"
+							>
+								{{ $t('project.kanban.assignSelectedMilestone') }}
+							</XButton>
+							<XButton
+								class="has-text-danger"
+								variant="secondary"
+								:shadow="false"
+								@click="openBulkActionDialog('delete')"
+							>
+								{{ $t('project.kanban.deleteSelectedCards') }}
+							</XButton>
+							<XButton
+								variant="secondary"
+								:shadow="false"
+								@click="openBulkActionDialog('bucket')"
+							>
+								{{ $t('project.kanban.moveSelectedBucket') }}
+							</XButton>
+						</div>
+					</div>
+
 					<draggable
 						v-bind="DRAG_OPTIONS"
 						:model-value="buckets"
@@ -270,7 +338,10 @@
 										<div
 											v-show="!hiddenDoneBuckets[bucket.id] || !isTaskCompleted(task)"
 											class="task-item card-item"
-											:class="{'is-selected': selectedTaskId === task.id}"
+											:class="{
+												'is-detail-selected': selectedTaskId === task.id,
+												'is-multi-selected': selectedTaskIds.includes(task.id),
+											}"
 											:data-task-id="task.id"
 										>
 											<span
@@ -287,7 +358,10 @@
 												:loading="taskUpdating[task.id] ?? false"
 												:project-id="projectId"
 												open-behavior="emit"
+												:selectable="canWrite"
+												:selected="selectedTaskIds.includes(task.id)"
 												@open="openTask"
+												@toggleSelected="toggleTaskSelection"
 												@taskCompletedRecurring="handleRecurringTaskCompletion"
 											/>
 										</div>
@@ -343,13 +417,89 @@
 						</p>
 					</template>
 				</Modal>
+
+				<Modal
+					:enabled="bulkAction !== null"
+					@close="closeBulkActionDialog"
+					@submit="submitBulkAction"
+				>
+					<template #header>
+						<span>{{ bulkActionDialogTitle }}</span>
+					</template>
+
+					<template #text>
+						<div class="bulk-action-dialog">
+							<p>
+								{{ $t('project.kanban.selectedCards', {count: selectedTasks.length}) }}
+							</p>
+
+							<Multiselect
+								v-if="bulkAction === 'assignee'"
+								v-model="bulkAssignee"
+								:loading="projectUserService.loading"
+								:placeholder="$t('task.assignee.placeholder')"
+								:search-results="foundProjectUsers"
+								label="name"
+								:select-placeholder="$t('task.assignee.selectPlaceholder')"
+								:autocomplete-enabled="false"
+								@search="findProjectUsers"
+							>
+								<template #searchResult="{option: user}">
+									<User
+										:avatar-size="24"
+										:show-username="true"
+										:user="user"
+									/>
+								</template>
+							</Multiselect>
+
+							<EditMilestone
+								v-else-if="bulkAction === 'milestone'"
+								v-model="bulkMilestone"
+								:project-id="projectIdWithFallback"
+							/>
+
+							<div
+								v-else-if="bulkAction === 'bucket'"
+								class="field"
+							>
+								<div class="control">
+									<div class="select is-fullwidth">
+										<select v-model.number="bulkBucketId">
+											<option
+												disabled
+												:value="0"
+											>
+												{{ $t('project.kanban.selectBucket') }}
+											</option>
+											<option
+												v-for="bucket in buckets"
+												:key="bucket.id"
+												:value="bucket.id"
+											>
+												{{ bucket.title }}
+											</option>
+										</select>
+									</div>
+								</div>
+							</div>
+
+							<p
+								v-else-if="bulkAction === 'delete'"
+								class="has-text-danger"
+							>
+								{{ $t('project.kanban.deleteSelectedCardsConfirm') }}
+							</p>
+						</div>
+					</template>
+				</Modal>
 			</div>
 		</template>
 	</ProjectWrapper>
 </template>
 
 <script setup lang="ts">
-import {computed, nextTick, onUnmounted, ref, watch, toRef} from 'vue'
+import {computed, nextTick, onUnmounted, ref, shallowReactive, watch, toRef} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import {useRouteQuery} from '@vueuse/router'
 import {useDebounceFn, useMediaQuery} from '@vueuse/core'
@@ -360,9 +510,12 @@ import {klona} from 'klona/lite'
 import {PERMISSIONS as Permissions} from '@/constants/permissions'
 import {STATUSES} from '@/constants/priorities'
 import BucketModel from '@/models/bucket'
+import TaskModel from '@/models/task'
 
 import type {IBucket} from '@/modelTypes/IBucket'
 import type {ITask} from '@/modelTypes/ITask'
+import type {IMilestone} from '@/modelTypes/IMilestone'
+import type {IUser} from '@/modelTypes/IUser'
 
 import {useBaseStore} from '@/stores/base'
 import {useTaskStore} from '@/stores/tasks'
@@ -372,6 +525,8 @@ import {useAuthStore} from '@/stores/auth'
 import ProjectWrapper from '@/components/project/ProjectWrapper.vue'
 import FilterPopup from '@/components/project/partials/FilterPopup.vue'
 import KanbanCard from '@/components/tasks/partials/KanbanCard.vue'
+import EditMilestone from '@/components/tasks/partials/EditMilestone.vue'
+import Multiselect from '@/components/input/Multiselect.vue'
 import TaskDetailView from '@/views/tasks/TaskDetailView.vue'
 import Dropdown from '@/components/misc/Dropdown.vue'
 import DropdownItem from '@/components/misc/DropdownItem.vue'
@@ -388,13 +543,14 @@ import {
 	saveHiddenDoneBucketState,
 } from '@/helpers/saveHiddenDoneBucketState'
 import {calculateItemPosition} from '@/helpers/calculateItemPosition'
+import {objectToSnakeCase} from '@/helpers/case'
+import {AuthenticatedHTTPFactory} from '@/helpers/fetcher'
 import {getDisplayName} from '@/models/user'
-import type {IUser} from '@/modelTypes/IUser'
 
 import {isSavedFilter, useSavedFilter} from '@/services/savedFilter'
 import {useTaskDragToProject} from '@/composables/useTaskDragToProject'
 import {useWebSocket} from '@/composables/useWebSocket'
-import {success} from '@/message'
+import {error, success} from '@/message'
 import {useProjectStore} from '@/stores/projects'
 import type {TaskFilterParams} from '@/services/taskCollection'
 import type {IProjectView} from '@/modelTypes/IProjectView'
@@ -404,7 +560,10 @@ import {i18n} from '@/i18n'
 import ProjectViewService from '@/services/projectViews'
 import ProjectViewModel from '@/models/projectView'
 import TaskBucketService from '@/services/taskBucket'
+import TaskAssigneeService from '@/services/taskAssignee'
 import TaskBucketModel from '@/models/taskBucket'
+import TaskService from '@/services/task'
+import ProjectUserService from '@/services/projectUsers'
 
 const props = defineProps<{
 	isLoadingProject: boolean,
@@ -467,6 +626,14 @@ const newTaskInputFocused = ref(false)
 const showSetLimitInput = ref(false)
 const collapsedBuckets = ref<CollapsedBuckets>({})
 const hiddenDoneBuckets = ref<HiddenDoneBuckets>({})
+const selectedTaskIds = ref<ITask['id'][]>([])
+const projectUserService = shallowReactive(new ProjectUserService())
+const foundProjectUsers = ref<IUser[]>([])
+const bulkAssignee = ref<IUser | null>(null)
+const bulkMilestone = ref<IMilestone | null>(null)
+const bulkBucketId = ref<IBucket['id']>(0)
+const bulkAction = ref<'assignee' | 'milestone' | 'bucket' | 'delete' | null>(null)
+const bulkActionLoading = ref(false)
 
 // We're using this to show the loading animation only at the task when updating it
 const taskUpdating = ref<{ [id: ITask['id']]: boolean }>({})
@@ -654,6 +821,29 @@ function onHandleTouchMove(e: TouchEvent) {
 const buckets = computed(() => kanbanStore.buckets)
 const loading = computed(() => kanbanStore.isLoading)
 const projectIdWithFallback = computed<number>(() => project.value?.id || projectId.value)
+const selectedTasks = computed(() => {
+	const taskMap = new Map<ITask['id'], ITask>(
+		buckets.value.flatMap(bucket => bucket.tasks.map(task => [task.id, task] as const)),
+	)
+	return selectedTaskIds.value
+		.map(taskId => taskMap.get(taskId))
+		.filter((task): task is ITask => typeof task !== 'undefined')
+})
+const hasSelectedTasks = computed(() => selectedTasks.value.length > 0)
+const bulkActionDialogTitle = computed(() => {
+	switch (bulkAction.value) {
+		case 'assignee':
+			return t('project.kanban.assignSelectedUser')
+		case 'milestone':
+			return t('project.kanban.assignSelectedMilestone')
+		case 'bucket':
+			return t('project.kanban.moveSelectedBucket')
+		case 'delete':
+			return t('project.kanban.deleteSelectedCards')
+		default:
+			return ''
+	}
+})
 type AssigneeEffortSummary = {
 	user: IUser,
 	remaining: number,
@@ -768,6 +958,11 @@ watch(
 	},
 )
 
+watch(buckets, (currentBuckets) => {
+	const availableTaskIds = new Set(currentBuckets.flatMap(bucket => bucket.tasks.map(task => task.id)))
+	selectedTaskIds.value = selectedTaskIds.value.filter(taskId => availableTaskIds.has(taskId))
+}, {deep: true})
+
 watch(
 	() => taskStore.lastUpdatedTask,
 	(updatedTask) => {
@@ -819,6 +1014,194 @@ function handleTaskContainerScroll(id: IBucket['id'], el: HTMLElement) {
 		params.value,
 		id,
 	)
+}
+
+function toggleTaskSelection(task: ITask) {
+	if (selectedTaskIds.value.includes(task.id)) {
+		selectedTaskIds.value = selectedTaskIds.value.filter(taskId => taskId !== task.id)
+		return
+	}
+
+	selectedTaskIds.value = [...selectedTaskIds.value, task.id]
+}
+
+function clearSelectedTasks() {
+	selectedTaskIds.value = []
+}
+
+function openBulkActionDialog(action: 'assignee' | 'milestone' | 'bucket' | 'delete') {
+	bulkAction.value = action
+	bulkAssignee.value = null
+	bulkMilestone.value = null
+	bulkBucketId.value = 0
+	foundProjectUsers.value = []
+}
+
+function closeBulkActionDialog() {
+	bulkAction.value = null
+	bulkAssignee.value = null
+	bulkMilestone.value = null
+	bulkBucketId.value = 0
+	foundProjectUsers.value = []
+}
+
+async function reloadKanbanAfterBulkAction() {
+	await kanbanStore.loadBucketsForProject(projectIdWithFallback.value, props.viewId, params.value)
+}
+
+async function runBulkAction(
+	action: () => Promise<void>,
+	message: string,
+) {
+	if (!hasSelectedTasks.value || bulkActionLoading.value) {
+		return
+	}
+
+	bulkActionLoading.value = true
+	suppressKanbanRealtimeReload()
+
+	try {
+		await action()
+		success({message})
+		clearSelectedTasks()
+		closeBulkActionDialog()
+		await reloadKanbanAfterBulkAction()
+	} catch (e) {
+		error(e)
+	} finally {
+		bulkActionLoading.value = false
+	}
+}
+
+async function bulkUpdateSelectedTasks(
+	values: Partial<ITask>,
+	fields: string[],
+	message: string,
+) {
+	await runBulkAction(async () => {
+		await AuthenticatedHTTPFactory().post('/tasks/bulk', {
+			task_ids: selectedTaskIds.value,
+			fields,
+			values: objectToSnakeCase(values),
+		})
+	}, message)
+}
+
+async function findProjectUsers(query: string) {
+	const response = await projectUserService.getAll({projectId: projectIdWithFallback.value}, {s: query}) as IUser[]
+	foundProjectUsers.value = response.map(user => ({
+		...user,
+		name: getDisplayName(user),
+	}))
+}
+
+async function markSelectedAsDone() {
+	await bulkUpdateSelectedTasks(
+		{done: true},
+		['done'],
+		t('project.kanban.selectedDoneSuccess'),
+	)
+}
+
+async function markSelectedAsForReview() {
+	await bulkUpdateSelectedTasks(
+		{done: false, status: STATUSES.REVIEW},
+		['done', 'status'],
+		t('project.kanban.selectedReviewSuccess'),
+	)
+}
+
+async function markSelectedAsUndone() {
+	await runBulkAction(async () => {
+		const taskService = new TaskService()
+
+		await Promise.all(selectedTasks.value.map(task => {
+			const nextStatus = task.status === STATUSES.DONE ? STATUSES.UNSET : task.status
+
+			return taskService.update(new TaskModel({
+				...task,
+				done: false,
+				status: nextStatus,
+			}))
+		}))
+	}, t('project.kanban.selectedUndoneSuccess'))
+}
+
+async function assignSelectedTasksToUser() {
+	if (bulkAssignee.value === null) {
+		error({message: t('project.kanban.selectUser')})
+		return
+	}
+
+	await runBulkAction(async () => {
+		const taskAssigneeService = new TaskAssigneeService()
+
+		await Promise.all(selectedTasks.value.map(task => {
+			if (task.assignees.some(assignee => assignee.id === bulkAssignee.value?.id)) {
+				return Promise.resolve(task)
+			}
+
+			return taskAssigneeService.create({
+				taskId: task.id,
+				userId: bulkAssignee.value?.id ?? 0,
+			})
+		}))
+	}, t('project.kanban.selectedUserAssignedSuccess'))
+}
+
+async function assignSelectedTasksToMilestone() {
+	if (bulkMilestone.value === null) {
+		error({message: t('project.kanban.selectMilestone')})
+		return
+	}
+
+	await bulkUpdateSelectedTasks(
+		{milestoneId: bulkMilestone.value.id},
+		['milestone_id'],
+		t('project.kanban.selectedMilestoneAssignedSuccess'),
+	)
+}
+
+async function moveSelectedTasksToBucket() {
+	if (bulkBucketId.value === 0) {
+		error({message: t('project.kanban.selectBucket')})
+		return
+	}
+
+	await runBulkAction(async () => {
+		for (const task of selectedTasks.value) {
+			await taskBucketService.value.update(new TaskBucketModel({
+				taskId: task.id,
+				bucketId: bulkBucketId.value,
+				projectViewId: props.viewId,
+				projectId: projectIdWithFallback.value,
+			}))
+		}
+	}, t('project.kanban.selectedBucketMovedSuccess'))
+}
+
+async function deleteSelectedTasks() {
+	await runBulkAction(async () => {
+		const taskService = new TaskService()
+		await Promise.all(selectedTasks.value.map(task => taskService.delete(task)))
+	}, t('project.kanban.selectedCardsDeletedSuccess'))
+}
+
+async function submitBulkAction() {
+	switch (bulkAction.value) {
+		case 'assignee':
+			await assignSelectedTasksToUser()
+			return
+		case 'milestone':
+			await assignSelectedTasksToMilestone()
+			return
+		case 'bucket':
+			await moveSelectedTasksToBucket()
+			return
+		case 'delete':
+			await deleteSelectedTasks()
+			return
+	}
 }
 
 function updateTasks(bucketId: IBucket['id'], tasks: IBucket['tasks']) {
@@ -1299,6 +1682,7 @@ $filter-container-height: '1rem - #{$switch-view-height}';
 			position: relative;
 			border-radius: 8px;
 			min-inline-size: 0;
+			overflow: visible;
 			
 			&.card-item {
 				// Card-specific styling
@@ -1323,7 +1707,7 @@ $filter-container-height: '1rem - #{$switch-view-height}';
 			border-radius: 15px !important;
 			box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
 			transition: all 0.3s cubic-bezier(.25,.8,.25,1);
-			overflow: hidden;
+			overflow: visible;
 			display: flex;
 			flex-direction: column;
 			
@@ -1358,7 +1742,7 @@ $filter-container-height: '1rem - #{$switch-view-height}';
 				align-items: center;
 				justify-content: space-between;
 				gap: 0.5rem;
-				min-height: 40px;
+				min-height: 48px;
 				border-radius: 1px 1px 10px 10px !important;
 			}
 			
@@ -1556,6 +1940,40 @@ $filter-container-height: '1rem - #{$switch-view-height}';
 	}
 }
 
+.kanban-bulk-actions {
+	position: sticky;
+	inset-block-start: 0;
+	z-index: 6;
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: .75rem;
+	margin-block-end: 1rem;
+	padding: .75rem;
+	border: 1px solid var(--grey-200);
+	border-radius: $radius;
+	background: color-mix(in srgb, var(--white) 94%, var(--primary) 6%);
+	box-shadow: var(--shadow-xs);
+
+	&__summary,
+	&__buttons {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: .5rem;
+	}
+
+	&__summary {
+		margin-inline-end: auto;
+	}
+}
+
+.bulk-action-dialog {
+	display: grid;
+	gap: 1rem;
+	text-align: start;
+}
+
 .kanban-detail-sidebar {
 	flex: 0 0 0;
 	inline-size: 0;
@@ -1645,7 +2063,8 @@ $filter-container-height: '1rem - #{$switch-view-height}';
 	display: none;
 }
 
-.task-item.is-selected .kanban-card {
+.task-item.is-detail-selected .kanban-card,
+.task-item.is-multi-selected .kanban-card {
 	box-shadow:
 		0 0 0 8px color-mix(in srgb, var(--primary) 36%, transparent),
 		0 10px 24px rgba(0, 0, 0, 0.14);

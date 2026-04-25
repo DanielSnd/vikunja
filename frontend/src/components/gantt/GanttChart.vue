@@ -11,6 +11,18 @@
 		:aria-label="$t('project.gantt.chartLabel')"
 	>
 		<div class="gantt-chart-wrapper">
+			<GanttMilestones
+				v-if="milestones.length > 0"
+				:milestones="milestones"
+				:date-from-date="dateFromDate"
+				:date-to-date="dateToDate"
+				:day-width-pixels="DAY_WIDTH_PIXELS"
+				:height="totalHeight"
+				:total-width="totalWidth"
+				:selected-milestone-id="selectedMilestoneId"
+				@select="emit('selectMilestone', $event)"
+			/>
+
 			<GanttTimelineHeader
 				:timeline-data="timelineData"
 				:day-width-pixels="DAY_WIDTH_PIXELS"
@@ -35,15 +47,6 @@
 						class="gantt-rows-container"
 						:style="{width: `${totalWidth}px`}"
 					>
-						<GanttMilestones
-							v-if="milestones.length > 0"
-							:milestones="milestones"
-							:date-from-date="dateFromDate"
-							:date-to-date="dateToDate"
-							:day-width-pixels="DAY_WIDTH_PIXELS"
-							:height="totalHeight"
-							:total-width="totalWidth"
-						/>
 						<!-- Group background bands for parent-child visual grouping -->
 						<div
 							v-for="(band, bandIndex) in parentGroupBands"
@@ -135,10 +138,12 @@ const props = defineProps<{
 	milestones: IMilestone[],
 	defaultTaskStartDate: DateISO
 	defaultTaskEndDate: DateISO
+	selectedMilestoneId?: IMilestone['id'] | null
 }>()
 
 const emit = defineEmits<{
   (e: 'update:task', task: ITaskPartialWithId): void
+  (e: 'selectMilestone', milestoneId: IMilestone['id']): void
 }>()
 
 const DAY_WIDTH_PIXELS = 30
