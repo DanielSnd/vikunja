@@ -47,6 +47,16 @@ const milestoneDateTimeInput = ref('')
 const milestoneService = shallowReactive(new MilestoneService())
 const projectUserService = shallowReactive(new ProjectUserService())
 
+watchEffect(() => {
+	if (milestoneDateDateInput.value && milestoneDateTimeInput.value) {
+		milestoneDateInput.value = `${milestoneDateDateInput.value}T${milestoneDateTimeInput.value}`
+	} else if (milestoneDateDateInput.value) {
+		milestoneDateInput.value = `${milestoneDateDateInput.value}T00:00`
+	} else {
+		milestoneDateInput.value = ''
+	}
+})
+
 function formatMilestoneDateInput(date: Date | string | null): string {
 	if (!date) {
 		return ''
