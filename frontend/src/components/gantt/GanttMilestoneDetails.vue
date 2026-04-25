@@ -61,7 +61,7 @@
 					/>
 				</div>
 			</div>
-
+			
 			<div
 				v-if="tasks.length === 0"
 				class="milestone-details__empty"
@@ -70,6 +70,58 @@
 			</div>
 
 			<template v-else>
+
+				<div class="milestone-details__progress">
+					<div class="milestone-details__section-title">
+						{{ $t('project.gantt.statusProgress') }}
+					</div>
+					<div class="progress-stack">
+						<div
+							v-for="item in progressItems"
+							:key="item.key"
+							class="progress-stack__segment"
+							:style="{
+								backgroundColor: item.color,
+								inlineSize: `${item.percentage}%`,
+							}"
+						/>
+					</div>
+				</div>
+
+				<div class="milestone-details__effort">
+					<div class="milestone-details__section-title">
+						{{ $t('project.gantt.effortBreakdown') }}
+					</div>
+					<div
+						v-if="milestoneEffortSummary.total > 0"
+						class="effort-summary-list"
+						:title="milestoneEffortSummaryTitle"
+					>
+						<span class="effort-summary effort-summary-total">
+							{{ milestoneEffortSummary.completed }} / {{ milestoneEffortSummary.total }}
+						</span>
+						<span
+							v-for="assignee in milestoneEffortSummary.assignees"
+							:key="assignee.user.id"
+							class="effort-summary assignee-effort-summary"
+						>
+							<User
+								:user="assignee.user"
+								:avatar-size="18"
+								:show-username="false"
+								:is-inline="true"
+							/>
+							<span>{{ assignee.completed }} / {{ assignee.total }}</span>
+						</span>
+					</div>
+					<div
+						v-else
+						class="milestone-details__empty"
+					>
+						{{ $t('project.gantt.noMilestoneEffort') }}
+					</div>
+				</div>
+				
 				<div class="milestone-details__chart">
 					<div class="milestone-details__section-title">
 						{{ $t('project.gantt.burndown') }}
@@ -172,56 +224,6 @@
 					</div>
 				</div>
 
-				<div class="milestone-details__progress">
-					<div class="milestone-details__section-title">
-						{{ $t('project.gantt.statusProgress') }}
-					</div>
-					<div class="progress-stack">
-						<div
-							v-for="item in progressItems"
-							:key="item.key"
-							class="progress-stack__segment"
-							:style="{
-								backgroundColor: item.color,
-								inlineSize: `${item.percentage}%`,
-							}"
-						/>
-					</div>
-				</div>
-
-				<div class="milestone-details__effort">
-					<div class="milestone-details__section-title">
-						{{ $t('project.gantt.effortBreakdown') }}
-					</div>
-					<div
-						v-if="milestoneEffortSummary.total > 0"
-						class="effort-summary-list"
-						:title="milestoneEffortSummaryTitle"
-					>
-						<span class="effort-summary effort-summary-total">
-							{{ milestoneEffortSummary.completed }} / {{ milestoneEffortSummary.total }}
-						</span>
-						<span
-							v-for="assignee in milestoneEffortSummary.assignees"
-							:key="assignee.user.id"
-							class="effort-summary assignee-effort-summary"
-						>
-							<User
-								:user="assignee.user"
-								:avatar-size="18"
-								:show-username="false"
-								:is-inline="true"
-							/>
-							<span>{{ assignee.completed }} / {{ assignee.total }}</span>
-						</span>
-					</div>
-					<div
-						v-else
-						class="milestone-details__empty"
-					>
-						{{ $t('project.gantt.noMilestoneEffort') }}
-					</div>
-				</div>
 			</template>
 		</template>
 	</Card>
