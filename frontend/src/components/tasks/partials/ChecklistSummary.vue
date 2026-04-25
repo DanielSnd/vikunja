@@ -78,10 +78,10 @@ svg {
 }
 
 circle {
-	stroke: var(--grey-400);
+	stroke: hsl(219.3, 16.6%, 34.3%);
 
 	&:last-child {
-		stroke: var(--primary);
+		stroke: hsl(123.7, 62.6%, 69.6%);
 	}
 }
 

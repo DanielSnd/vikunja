@@ -166,4 +166,48 @@ func TestMilestone_CRUD(t *testing.T) {
 		assert.Len(t, read.Users, 1)
 		assert.Equal(t, int64(1), read.Users[0].ID)
 	})
+
+	t.Run("read all can include parent project milestones", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		s := db.NewSession()
+		defer s.Close()
+
+		parentMilestone := &Milestone{
+			ProjectID: 28,
+			Name:      "Shared parent milestone",
+		}
+		require.NoError(t, parentMilestone.Create(s, u))
+
+		childMilestone := &Milestone{
+			ProjectID: 13,
+			Name:      "Child milestone",
+		}
+		require.NoError(t, childMilestone.Create(s, u))
+
+		childOnly := &Milestone{ProjectID: 13}
+		result, _, totalItems, err := childOnly.ReadAll(s, u, "", 0, 0)
+		require.NoError(t, err)
+		require.Equal(t, int64(1), totalItems)
+
+		childOnlyMilestones, is := result.([]*Milestone)
+		require.True(t, is)
+		require.Len(t, childOnlyMilestones, 1)
+		assert.Equal(t, childMilestone.ID, childOnlyMilestones[0].ID)
+
+		withParents := &Milestone{
+			ProjectID:      13,
+			IncludeParents: true,
+		}
+		result, _, totalItems, err = withParents.ReadAll(s, u, "", 0, 0)
+		require.NoError(t, err)
+		require.Equal(t, int64(2), totalItems)
+
+		milestonesWithParents, is := result.([]*Milestone)
+		require.True(t, is)
+		require.Len(t, milestonesWithParents, 2)
+
+		milestoneIDs := []int64{milestonesWithParents[0].ID, milestonesWithParents[1].ID}
+		assert.Contains(t, milestoneIDs, parentMilestone.ID)
+		assert.Contains(t, milestoneIDs, childMilestone.ID)
+	})
 }

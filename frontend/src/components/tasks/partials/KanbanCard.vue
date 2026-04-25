@@ -111,7 +111,12 @@
 				</span>
 
 				<!-- Task ID / Done indicator -->
-				<span class="task-id-badge">
+				<span
+					v-tooltip="$t('project.kanban.cardEffortShortcutHint')"
+					class="task-id-badge shortcut-zone shortcut-zone--effort"
+					@mouseenter="hoveredFooterAction = 'effort'"
+					@mouseleave="clearHoveredFooterAction('effort')"
+				>
 					<!-- <template v-if="task.identifier === ''">
 						#{{ task.index }}
 					</template>
@@ -130,6 +135,11 @@
 						:effort="task.effort"
 						:done="task.done"
 						class="effort-indicator"
+					/>
+					<span
+						v-else
+						class="shortcut-placeholder shortcut-placeholder--effort"
+						aria-hidden="true"
 					/>
 				</span>
 
@@ -157,15 +167,44 @@
 				</div>
 			</div>
 
-			<div
-				v-if="task.assignees.length > 0"
-				class="footer-center"
-			>
-				<AssigneeList
-					:assignees="task.assignees"
-					:avatar-size="38"
-					class="card-assignees"
-				/>
+			<div class="footer-center">
+				<div
+					ref="assigneeTriggerRef"
+					v-tooltip="task.assignees.length === 0 ? $t('project.kanban.cardOwnerShortcutHint') : undefined"
+					class="shortcut-zone shortcut-zone--assignee"
+					@mouseenter="hoveredFooterAction = 'assignee'"
+					@mouseleave="clearHoveredFooterAction('assignee')"
+				>
+					<AssigneeList
+						v-if="task.assignees.length > 0"
+						:assignees="task.assignees"
+						:avatar-size="38"
+						class="card-assignees"
+					/>
+					<span
+						v-else
+						class="shortcut-placeholder shortcut-placeholder--assignee"
+						aria-hidden="true"
+					/>
+				</div>
+
+				<div
+					v-if="isAssigneeEditorOpen"
+					ref="assigneeEditorPopupRef"
+					class="assignee-editor-popup"
+					@click.stop
+					@mousedown.stop
+				>
+					<EditAssignees
+						ref="assigneeEditorRef"
+						v-model="editableAssignees"
+						:task-id="task.id"
+						:project-id="task.projectId"
+						:show-project-users-on-empty="true"
+						:autofocus="true"
+						:silent-updates="true"
+					/>
+				</div>
 			</div>
 
 			<div class="footer-right">
@@ -187,7 +226,7 @@
 </template>
 
 <script lang="ts" setup>
-import {computed, ref, watch} from 'vue'
+import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import {useRouter} from 'vue-router'
 
 import {useGlobalNow} from '@/composables/useGlobalNow'
@@ -202,6 +241,7 @@ import CommentCount from './CommentCount.vue'
 import {getHexColor} from '@/models/task'
 import type {ITask} from '@/modelTypes/ITask'
 import type {IProject} from '@/modelTypes/IProject'
+import type {IUser} from '@/modelTypes/IUser'
 import {SUPPORTED_IMAGE_SUFFIX} from '@/models/attachment'
 import AttachmentService, {PREVIEW_SIZE} from '@/services/attachment'
 
@@ -209,6 +249,7 @@ import {formatDateLong, formatDisplayDate, formatISO} from '@/helpers/time/forma
 import {colorIsDark} from '@/helpers/color/colorIsDark'
 import {useTaskStore} from '@/stores/tasks'
 import AssigneeList from '@/components/tasks/partials/AssigneeList.vue'
+import EditAssignees from '@/components/tasks/partials/EditAssignees.vue'
 import {playPopSound} from '@/helpers/playPop'
 import {useProjectStore} from '@/stores/projects'
 import {TASK_REPEAT_MODES} from '@/types/IRepeatMode'
@@ -237,6 +278,12 @@ const router = useRouter()
 
 const loadingInternal = ref(false)
 const cardRef = ref<HTMLElement | null>(null)
+const assigneeTriggerRef = ref<HTMLElement | null>(null)
+const assigneeEditorPopupRef = ref<HTMLElement | null>(null)
+const assigneeEditorRef = ref<{focus: () => void} | null>(null)
+const hoveredFooterAction = ref<'effort' | 'assignee' | null>(null)
+const isAssigneeEditorOpen = ref(false)
+const editableAssignees = ref<IUser[]>([])
 
 const MAX_TILT_DEG = 7
 const tiltActive = ref(false)
@@ -396,6 +443,123 @@ watch(
 		}
 	},
 )
+
+watch(
+	() => props.task.assignees,
+	(assignees) => {
+		editableAssignees.value = [...assignees]
+	},
+	{immediate: true, deep: true},
+)
+
+function clearHoveredFooterAction(action: 'effort' | 'assignee') {
+	if (hoveredFooterAction.value === action) {
+		hoveredFooterAction.value = null
+	}
+}
+
+async function updateTaskEffort(effort: number) {
+	if (loadingInternal.value || props.loading || props.task.effort === effort) {
+		return
+	}
+
+	loadingInternal.value = true
+	try {
+		await useTaskStore().update({
+			...props.task,
+			effort,
+		})
+	} finally {
+		loadingInternal.value = false
+	}
+}
+
+async function openAssigneeEditor() {
+	if (loadingInternal.value || props.loading) {
+		return
+	}
+
+	isAssigneeEditorOpen.value = true
+	hoveredFooterAction.value = 'assignee'
+
+	await nextTick()
+	await assigneeEditorRef.value?.focus()
+}
+
+function closeAssigneeEditor() {
+	isAssigneeEditorOpen.value = false
+}
+
+function isTypingTarget(target: EventTarget | null) {
+	return target instanceof HTMLElement && (
+		target.isContentEditable ||
+		['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
+	)
+}
+
+function handleDocumentClick(event: MouseEvent) {
+	if (!isAssigneeEditorOpen.value) {
+		return
+	}
+
+	const target = event.target
+	if (
+		target instanceof Node &&
+		(
+			assigneeEditorPopupRef.value?.contains(target) ||
+			assigneeTriggerRef.value?.contains(target)
+		)
+	) {
+		return
+	}
+
+	closeAssigneeEditor()
+}
+
+async function handleWindowKeydown(event: KeyboardEvent) {
+	if (loadingInternal.value || props.loading) {
+		return
+	}
+
+	if (event.isComposing || event.repeat) {
+		return
+	}
+
+	if (isAssigneeEditorOpen.value) {
+		if (event.key === 'Escape') {
+			event.preventDefault()
+			closeAssigneeEditor()
+		}
+		return
+	}
+
+	if (isTypingTarget(event.target)) {
+		return
+	}
+
+	const digitMatch = event.code.match(/^(?:Digit|Numpad)([0-9])$/)
+	const effortDigit = digitMatch?.[1] ?? (/^[0-9]$/.test(event.key) ? event.key : null)
+	if (hoveredFooterAction.value === 'effort' && effortDigit !== null) {
+		event.preventDefault()
+		await updateTaskEffort(Number(effortDigit))
+		return
+	}
+
+	if (hoveredFooterAction.value === 'assignee' && event.key.toLowerCase() === 'o') {
+		event.preventDefault()
+		await openAssigneeEditor()
+	}
+}
+
+onMounted(() => {
+	document.addEventListener('keydown', handleWindowKeydown, true)
+	document.addEventListener('mousedown', handleDocumentClick)
+})
+
+onBeforeUnmount(() => {
+	document.removeEventListener('keydown', handleWindowKeydown, true)
+	document.removeEventListener('mousedown', handleDocumentClick)
+})
 </script>
 
 <style lang="scss" scoped>
@@ -595,7 +759,7 @@ $task-background: var(--white);
 		:deep(.tag),
 		:deep(.checklist-summary),
 		:deep(.comment-count) {
-			text-shadow: 0 0 1px rgba(0, 0, 0, 1), 0 1px 5px rgba(0, 0, 0, .1);
+			text-shadow: 0 0 2px rgba(0, 0, 0, 1), 0 1px 8px rgba(0, 0, 0, 1);
 		}
 	}
 }
@@ -659,7 +823,7 @@ $task-background: var(--white);
 	word-break: break-word;
 	margin: 0;
 	color: var(--text-primary);
-	text-shadow: 0 0 5px rgb(0, 0, 0),0 5px 5px rgba(0,0,0,.1);
+	text-shadow: 0 1px 10px rgb(0,0,0),0 2px 4px rgb(0,0,0,0.1);
 }
 
 .card-labels {
@@ -674,7 +838,7 @@ $task-background: var(--white);
 	display: inline-flex;
 	align-items: center;
 	padding: 0.25rem 0.5rem;
-	background: var(--primary-light);
+	background: hsl(221.3, 13.6%, 23.1%);
 	color: var(--primary);
 	border-radius: calc($radius / 1.5);
 	font-size: 0.75rem;
@@ -754,14 +918,14 @@ $task-background: var(--white);
 	transform: translateZ(28px);
 
 	&.status-0 {
-		--kanban-footer-color: hsl(210, 2.5%, 31.4%);
-		background:hsl(210, 2.5%, 31.4%);
+		--kanban-footer-color: #4a5967;
+		background:#4a5967;
 		border-top-color: hsl(200, 4%, 43%);
 	}
 	
 	&.status-1 {
-		--kanban-footer-color: hsl(220, 70%, 50%);
-		background: hsl(220, 70%, 50%); // navy blue
+		--kanban-footer-color:#3c71c2;
+		background: #3c71c2; // navy blue
 		border-top-color: hsl(220, 82%, 78%);
 	}
 	
@@ -808,6 +972,57 @@ $task-background: var(--white);
 	.card-assignees {
 		pointer-events: auto;
 	}
+}
+
+.shortcut-zone {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: calc($radius / 1.5);
+	pointer-events: auto;
+}
+
+.shortcut-zone--effort {
+	min-inline-size: 2.5rem;
+	min-block-size: 1.5rem;
+}
+
+.shortcut-zone--assignee {
+	min-inline-size: 4.5rem;
+	min-block-size: 2.75rem;
+	padding-inline: 0.25rem;
+}
+
+.shortcut-placeholder {
+	display: inline-block;
+	border-radius: 999px;
+}
+
+.shortcut-placeholder--effort {
+	inline-size: 2rem;
+	block-size: 1.1rem;
+}
+
+.shortcut-placeholder--assignee {
+	inline-size: 4rem;
+	block-size: 2rem;
+}
+
+.assignee-editor-popup {
+	position: absolute;
+	inset-block-end: calc(100% + 0.5rem);
+	inset-inline-start: 50%;
+	transform: translateX(-50%);
+	inline-size: min(18rem, calc(100vw - 2rem));
+	padding: 0.5rem;
+	border: 1px solid var(--grey-200);
+	border-radius: $radius;
+	background: var(--white);
+	box-shadow:
+		0 18px 30px rgba(15, 23, 42, 0.16),
+		0 6px 14px rgba(15, 23, 42, 0.1);
+	pointer-events: auto;
 }
 
 .footer-right {

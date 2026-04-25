@@ -32,6 +32,14 @@
     "welcomeEveningOneMore": "One more thing, {username}?",
     "welcomeEveningStill": "Still at it, {username}?",
     "lastViewed": "Last viewed",
+    "hand": {
+      "title": "Hand",
+      "showingActive": "Assigned cards that are in play.",
+      "showingAll": "Showing assigned cards in every state.",
+      "showUnsetAndDone": "Show UNSET and DONE cards",
+      "hideUnsetAndDone": "Hide UNSET and DONE cards",
+      "empty": "No assigned cards match this hand."
+    },
     "addToHomeScreen": "Add this app to your home screen for faster access and improved experience.",
     "goToOverview": "Go to overview",
     "project": {
@@ -539,7 +547,9 @@
       "selectedUserAssignedSuccess": "The selected cards were assigned to the user.",
       "selectedMilestoneAssignedSuccess": "The selected cards were assigned to the milestone.",
       "selectedBucketMovedSuccess": "The selected cards were moved to the bucket.",
-      "selectedCardsDeletedSuccess": "The selected cards were deleted."
+      "selectedCardsDeletedSuccess": "The selected cards were deleted.",
+      "cardEffortShortcutHint": "Press 0-9 to change effort",
+      "cardOwnerShortcutHint": "Press O to change owner"
     },
     "pseudo": {
       "favorites": {

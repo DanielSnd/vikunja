@@ -230,11 +230,13 @@ export const useTaskStore = defineStore('task', () => {
 	async function addAssignee({
 		user,
 		taskId,
+		silent = false,
 	}: {
 		user: IUser,
-		taskId: ITask['id']
+		taskId: ITask['id'],
+		silent?: boolean,
 	}) {
-		const cancel = setModuleLoading(setIsLoading)
+		const cancel = silent ? () => {} : setModuleLoading(setIsLoading)
 		
 		try {
 			const taskAssigneeService = new TaskAssigneeService()
@@ -251,16 +253,20 @@ export const useTaskStore = defineStore('task', () => {
 				return r
 			}
 
+			const updatedTask = {
+				...t.task,
+				assignees: [
+					...t.task.assignees,
+					user,
+				],
+			}
+
 			kanbanStore.setTaskInBucketByIndex({
 				...t,
-				task: {
-					...t.task,
-					assignees: [
-						...t.task.assignees,
-						user,
-					],
-				},
+				task: updatedTask,
 			})
+			tasks.value[taskId] = updatedTask
+			lastUpdatedTask.value = updatedTask
 
 			return r
 		} finally {
@@ -271,35 +277,44 @@ export const useTaskStore = defineStore('task', () => {
 	async function removeAssignee({
 		user,
 		taskId,
+		silent = false,
 	}: {
 		user: IUser,
-		taskId: ITask['id']
+		taskId: ITask['id'],
+		silent?: boolean,
 	}) {
-		const taskAssigneeService = new TaskAssigneeService()
-		const response = await taskAssigneeService.delete(new TaskAssigneeModel({
-			userId: user.id,
-			taskId: taskId,
-		}))
-		const t = kanbanStore.getTaskById(taskId)
-		if (t.task === null) {
-			// Don't try further adding a label if the task is not in kanban
-			// Usually this means the kanban board hasn't been accessed until now.
-			// Vuex seems to have its difficulties with that, so we just log the error and fail silently.
-			console.debug('Could not remove assignee from task in kanban, task not found', t)
-			return response
-		}
+		const cancel = silent ? () => {} : setModuleLoading(setIsLoading)
+		try {
+			const taskAssigneeService = new TaskAssigneeService()
+			const response = await taskAssigneeService.delete(new TaskAssigneeModel({
+				userId: user.id,
+				taskId: taskId,
+			}))
+			const t = kanbanStore.getTaskById(taskId)
+			if (t.task === null) {
+				// Don't try further adding a label if the task is not in kanban
+				// Usually this means the kanban board hasn't been accessed until now.
+				// Vuex seems to have its difficulties with that, so we just log the error and fail silently.
+				console.debug('Could not remove assignee from task in kanban, task not found', t)
+				return response
+			}
 
-		const assignees = t.task.assignees.filter(({ id }) => id !== user.id)
-
-		kanbanStore.setTaskInBucketByIndex({
-			...t,
-			task: {
+			const assignees = t.task.assignees.filter(({ id }) => id !== user.id)
+			const updatedTask = {
 				...t.task,
 				assignees,
-			},
-		})
-		return response
+			}
 
+			kanbanStore.setTaskInBucketByIndex({
+				...t,
+				task: updatedTask,
+			})
+			tasks.value[taskId] = updatedTask
+			lastUpdatedTask.value = updatedTask
+			return response
+		} finally {
+			cancel()
+		}
 	}
 
 	async function addLabel({

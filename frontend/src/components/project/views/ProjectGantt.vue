@@ -102,6 +102,7 @@ import type {IProjectView} from '@/modelTypes/IProjectView'
 import type {IMilestone} from '@/modelTypes/IMilestone'
 import MilestoneService from '@/services/milestone'
 import TaskCollectionService, {getDefaultTaskFilterParams, type TaskFilterParams} from '@/services/taskCollection'
+import TaskService from '@/services/task'
 
 type Options = Flatpickr.Options.Options
 
@@ -128,10 +129,11 @@ const {
 
 const milestoneService = shallowReactive(new MilestoneService())
 const taskCollectionService = shallowReactive(new TaskCollectionService())
+const milestoneTaskService = shallowReactive(new TaskService())
 const milestones = ref<IMilestone[]>([])
 const selectedMilestoneId = ref<IMilestone['id'] | null>(null)
 const selectedMilestoneTasks = ref<ITask[]>([])
-const isLoadingMilestoneTasks = computed(() => taskCollectionService.loading)
+const isLoadingMilestoneTasks = computed(() => milestoneTaskService.loading)
 const selectedMilestone = computed(() => milestones.value.find(milestone => milestone.id === selectedMilestoneId.value) ?? null)
 
 watch(
@@ -142,7 +144,10 @@ watch(
 			return
 		}
 
-		milestones.value = await milestoneService.getAll({projectId})
+		milestones.value = await milestoneService.getAll(
+			{projectId},
+			{includeParents: true},
+		)
 		if (selectedMilestoneId.value && !milestones.value.some(milestone => milestone.id === selectedMilestoneId.value)) {
 			selectedMilestoneId.value = null
 		}
@@ -150,21 +155,21 @@ watch(
 	{immediate: true},
 )
 
-async function fetchMilestoneTasks(projectId: number, milestoneId: number, page = 1): Promise<ITask[]> {
+async function fetchMilestoneTasks(milestoneId: number, page = 1): Promise<ITask[]> {
 	const params: TaskFilterParams = {
 		...getDefaultTaskFilterParams(),
 		sort_by: ['done', 'id'],
 		order_by: ['asc', 'desc'],
 		expand: 'subtasks',
+		filter: `milestone_id = ${milestoneId}`,
 	}
 
-	const tasks = await taskCollectionService.getAll({projectId}, params, page) as ITask[]
-	const filteredTasks = tasks.filter(task => task.milestoneId === milestoneId)
-	if (page < taskCollectionService.totalPages) {
-		return filteredTasks.concat(await fetchMilestoneTasks(projectId, milestoneId, page + 1))
+	const tasks = await milestoneTaskService.getAll({} as ITask, params, page) as ITask[]
+	if (page < milestoneTaskService.totalPages) {
+		return tasks.concat(await fetchMilestoneTasks(milestoneId, page + 1))
 	}
 
-	return filteredTasks
+	return tasks
 }
 
 watch(
@@ -175,7 +180,7 @@ watch(
 			return
 		}
 
-		selectedMilestoneTasks.value = await fetchMilestoneTasks(projectId, milestoneId)
+		selectedMilestoneTasks.value = await fetchMilestoneTasks(milestoneId)
 	},
 	{immediate: true},
 )

@@ -1,5 +1,6 @@
 <template>
 	<Multiselect
+		ref="multiselectRef"
 		v-model="assignees"
 		class="edit-assignees"
 		:class="{'has-assignees': assignees.length > 0}"
@@ -10,6 +11,7 @@
 		label="name"
 		:select-placeholder="$t('task.assignee.selectPlaceholder')"
 		:autocomplete-enabled="false"
+		:show-empty="showProjectUsersOnEmpty"
 		@search="findUser"
 		@select="addAssignee"
 	>
@@ -32,7 +34,7 @@
 </template>
 
 <script setup lang="ts">
-import {ref, shallowReactive, watch, nextTick} from 'vue'
+import {ref, shallowReactive, watch, nextTick, onMounted} from 'vue'
 import {useI18n} from 'vue-i18n'
 
 import User from '@/components/misc/User.vue'
@@ -52,8 +54,14 @@ const props = withDefaults(defineProps<{
 	taskId: number,
 	projectId: number,
 	disabled?: boolean,
+	showProjectUsersOnEmpty?: boolean,
+	autofocus?: boolean,
+	silentUpdates?: boolean,
 }>(), {
 	disabled: false,
+	showProjectUsersOnEmpty: false,
+	autofocus: false,
+	silentUpdates: false,
 })
 
 const emit = defineEmits<{
@@ -64,6 +72,7 @@ const taskStore = useTaskStore()
 const {t} = useI18n({useScope: 'global'})
 
 const projectUserService = shallowReactive(new ProjectUserService())
+const multiselectRef = ref<{focus: () => void} | null>(null)
 const foundUsers = ref<IUser[]>([])
 const assignees = ref<IUser[]>([])
 let isAdding = false
@@ -87,7 +96,7 @@ async function addAssignee(user: IUser) {
 	try {
 		nextTick(() => isAdding = true)
 
-		await taskStore.addAssignee({user: user, taskId: props.taskId})
+		await taskStore.addAssignee({user: user, taskId: props.taskId, silent: props.silentUpdates})
 		emit('update:modelValue', assignees.value)
 		success({message: t('task.assignee.assignSuccess')})
 	} finally {
@@ -96,7 +105,7 @@ async function addAssignee(user: IUser) {
 }
 
 async function removeAssignee(user: IUser) {
-	await taskStore.removeAssignee({user: user, taskId: props.taskId})
+	await taskStore.removeAssignee({user: user, taskId: props.taskId, silent: props.silentUpdates})
 
 	// Remove the assignee from the project
 	const idx = assignees.value.findIndex(a => a.id === user.id)
@@ -118,6 +127,27 @@ async function findUser(query: string) {
 			return u
 		})
 }
+
+async function focus() {
+	if (props.showProjectUsersOnEmpty) {
+		await findUser('')
+	}
+
+	await nextTick()
+	multiselectRef.value?.focus()
+}
+
+onMounted(async () => {
+	if (!props.autofocus) {
+		return
+	}
+
+	await focus()
+})
+
+defineExpose({
+	focus,
+})
 </script>
 
 <style lang="scss">

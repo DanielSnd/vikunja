@@ -202,6 +202,33 @@ func TestTask_Create(t *testing.T) {
 			"milestone_id": milestone.ID,
 		}, false)
 	})
+	t.Run("with parent project milestone", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		s := db.NewSession()
+		defer s.Close()
+
+		milestone := &Milestone{
+			ProjectID: 28,
+			Name:      "Release 1.0",
+		}
+		require.NoError(t, milestone.Create(s, usr))
+
+		task := &Task{
+			Title:       "Lorem",
+			Description: "Lorem Ipsum Dolor",
+			ProjectID:   13,
+			MilestoneID: milestone.ID,
+		}
+		err := task.Create(s, usr)
+		require.NoError(t, err)
+		require.NoError(t, s.Commit())
+
+		db.AssertExists(t, "tasks", map[string]interface{}{
+			"id":           task.ID,
+			"project_id":   13,
+			"milestone_id": milestone.ID,
+		}, false)
+	})
 }
 
 func TestTask_Update(t *testing.T) {
@@ -310,6 +337,40 @@ func TestTask_Update(t *testing.T) {
 
 		db.AssertExists(t, "tasks", map[string]interface{}{
 			"id":           1,
+			"milestone_id": milestone.ID,
+		}, false)
+	})
+	t.Run("moving task between child and parent keeps valid parent milestone", func(t *testing.T) {
+		db.LoadAndAssertFixtures(t)
+		s := db.NewSession()
+		defer s.Close()
+
+		milestone := &Milestone{
+			ProjectID: 28,
+			Name:      "Release 1.0",
+		}
+		require.NoError(t, milestone.Create(s, u))
+
+		task := &Task{
+			Title:       "Lorem",
+			Description: "Lorem Ipsum Dolor",
+			ProjectID:   13,
+			MilestoneID: milestone.ID,
+		}
+		require.NoError(t, task.Create(s, u))
+
+		updateTask := &Task{
+			ID:          task.ID,
+			ProjectID:   28,
+			MilestoneID: milestone.ID,
+		}
+		err := updateTask.Update(s, u)
+		require.NoError(t, err)
+		require.NoError(t, s.Commit())
+
+		db.AssertExists(t, "tasks", map[string]interface{}{
+			"id":           task.ID,
+			"project_id":   28,
 			"milestone_id": milestone.ID,
 		}, false)
 	})

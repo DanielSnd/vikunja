@@ -35,6 +35,7 @@
 				:show-even-number-of-projects="true"
 			/>
 		</div>
+		<HandTasks class="is-max-width-desktop has-text-start" />
 		<ShowTasks
 			v-if="projectStore.hasProjects"
 			:key="showTasksKey"
@@ -55,6 +56,7 @@ import ShowTasks from '@/views/tasks/ShowTasks.vue'
 import ProjectCardGrid from '@/components/project/partials/ProjectCardGrid.vue'
 import AddTask from '@/components/tasks/AddTask.vue'
 import ImportHint from '@/components/home/ImportHint.vue'
+import HandTasks from '@/components/home/HandTasks.vue'
 
 import {getHistory} from '@/modules/projectHistory'
 import {parseDateOrNull} from '@/helpers/parseDateOrNull'

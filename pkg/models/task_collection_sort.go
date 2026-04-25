@@ -48,6 +48,7 @@ const (
 	taskPropertyUpdated       string = "updated"
 	taskPropertyPosition      string = "position"
 	taskPropertyBucketID      string = "bucket_id"
+	taskPropertyMilestoneID   string = "milestone_id"
 	taskPropertyIndex         string = "index"
 	taskPropertyProjectViewID string = "project_view_id"
 	taskPropertyAssignees     string = "assignees"

@@ -571,11 +571,18 @@ func validateMilestoneForTask(s *xorm.Session, projectID, milestoneID int64) (*M
 		return nil, err
 	}
 
-	if milestone.ProjectID != projectID {
-		return nil, InvalidFieldErrorWithMessage([]string{"milestone_id"}, "The milestone must belong to the same project as the task.")
+	projectIDs, err := getProjectAndParentProjectIDs(s, projectID)
+	if err != nil {
+		return nil, err
 	}
 
-	return milestone, nil
+	for _, allowedProjectID := range projectIDs {
+		if milestone.ProjectID == allowedProjectID {
+			return milestone, nil
+		}
+	}
+
+	return nil, InvalidFieldErrorWithMessage([]string{"milestone_id"}, "The milestone must belong to the same project as the task or one of its parent projects.")
 }
 
 // Get task attachments
@@ -1243,6 +1250,8 @@ func (t *Task) updateSingleTask(s *xorm.Session, a web.Auth, fields []string) (e
 		"cover_image_attachment_id",
 	}
 
+	fieldSet := map[string]bool{}
+
 	// Validate fields if provided
 	if len(fields) > 0 {
 		allowed := map[string]bool{}
@@ -1250,7 +1259,6 @@ func (t *Task) updateSingleTask(s *xorm.Session, a web.Auth, fields []string) (e
 			allowed[c] = true
 		}
 		cols := []string{}
-		fieldSet := map[string]bool{}
 		for _, f := range fields {
 			if !allowed[f] {
 				return ErrInvalidTaskColumn{Column: f}
@@ -1349,9 +1357,11 @@ func (t *Task) updateSingleTask(s *xorm.Session, a web.Auth, fields []string) (e
 		}
 		t.BucketID = 0
 
-		// Milestones are project-scoped, so carrying over the old milestone across projects would break the relation.
-		if t.MilestoneID == 0 || t.MilestoneID == ot.MilestoneID {
-			t.MilestoneID = 0
+		// Keep the existing milestone when moving tasks only if it is still valid for the new project ancestry.
+		if !fieldSet["milestone_id"] && t.MilestoneID != 0 {
+			if _, err = validateMilestoneForTask(s, t.ProjectID, t.MilestoneID); err != nil {
+				t.MilestoneID = 0
+			}
 		}
 
 		colsToUpdate = append(colsToUpdate, "index")

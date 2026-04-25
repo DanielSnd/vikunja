@@ -100,7 +100,13 @@ function getMilestoneStyles(milestone: IMilestone) {
 
 async function findMilestones(query: string) {
 	searchQuery.value = query
-	loadedMilestones.value = await milestoneService.getAll({projectId: props.projectId}, {s: query})
+	loadedMilestones.value = await milestoneService.getAll(
+		{projectId: props.projectId},
+		{
+			s: query,
+			includeParents: true,
+		},
+	)
 }
 
 function selectMilestone(selectedMilestone: IMilestone) {

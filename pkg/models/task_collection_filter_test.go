@@ -62,6 +62,14 @@ func TestParseFilter(t *testing.T) {
 		assert.Equal(t, "project_id", result[0].field)
 		assert.Equal(t, int64(4234), result[0].value)
 	})
+	t.Run("milestone id", func(t *testing.T) {
+		result, err := getTaskFiltersFromFilterString("milestone_id = 42", "UTC")
+
+		require.NoError(t, err)
+		require.Len(t, result, 1)
+		assert.Equal(t, "milestone_id", result[0].field)
+		assert.Equal(t, int64(42), result[0].value)
+	})
 	t.Run("in", func(t *testing.T) {
 		result, err := getTaskFiltersFromFilterString("project_id in 1,2,3", "UTC")
 

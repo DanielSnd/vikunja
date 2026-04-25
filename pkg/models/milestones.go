@@ -33,6 +33,8 @@ type Milestone struct {
 
 	ProjectID int64  `xorm:"bigint not null index" json:"project_id" param:"project"`
 	Name      string `xorm:"varchar(250) not null" json:"name" valid:"required,runelength(1|250)" minLength:"1" maxLength:"250"`
+	// IncludeParents controls whether parent project milestones should be returned when listing milestones.
+	IncludeParents bool `xorm:"-" json:"-" query:"include_parents"`
 
 	MilestoneDate *time.Time `xorm:"DATETIME null 'milestone_date'" json:"milestone_date"`
 	HexColor      string     `xorm:"varchar(6) null" json:"hex_color" valid:"runelength(0|7)" maxLength:"7"`
@@ -190,6 +192,20 @@ func canUserAccessProject(s *xorm.Session, userID, projectID int64) (bool, error
 	return canRead, err
 }
 
+func getProjectAndParentProjectIDs(s *xorm.Session, projectID int64) ([]int64, error) {
+	projects, err := GetAllParentProjects(s, projectID)
+	if err != nil {
+		return nil, err
+	}
+
+	projectIDs := make([]int64, 0, len(projects))
+	for id := range projects {
+		projectIDs = append(projectIDs, id)
+	}
+
+	return projectIDs, nil
+}
+
 // Create creates a new milestone.
 func (m *Milestone) Create(s *xorm.Session, _ web.Auth) error {
 	if _, err := GetProjectSimpleByID(s, m.ProjectID); err != nil {
@@ -293,7 +309,15 @@ func (m *Milestone) ReadAll(s *xorm.Session, a web.Auth, search string, page int
 	limit, start := getLimitFromPageIndex(page, perPage)
 	milestones := []*Milestone{}
 
-	query := s.Where("project_id = ?", m.ProjectID).
+	projectIDs := []int64{m.ProjectID}
+	if m.IncludeParents {
+		projectIDs, err = getProjectAndParentProjectIDs(s, m.ProjectID)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+	}
+
+	query := s.In("project_id", projectIDs).
 		Where(db.ILIKE("name", search)).
 		OrderBy("milestone_date ASC, id ASC")
 	if limit > 0 {
@@ -308,7 +332,7 @@ func (m *Milestone) ReadAll(s *xorm.Session, a web.Auth, search string, page int
 		return nil, 0, 0, err
 	}
 
-	totalItems, err = s.Where("project_id = ?", m.ProjectID).
+	totalItems, err = s.In("project_id", projectIDs).
 		Where(db.ILIKE("name", search)).
 		Count(&Milestone{})
 	if err != nil {
