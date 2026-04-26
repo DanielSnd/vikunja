@@ -147,6 +147,12 @@ type Task struct {
 	// Comment count of this task. Only present when fetching tasks with the `expand` parameter set to `comment_count`.
 	CommentCount *int64 `xorm:"-" json:"comment_count,omitempty"`
 
+	// Time tracking totals grouped by user. Only present when fetching tasks with the `expand` parameter set to `time_tracking_summary`.
+	TimeTrackingSummary []*TaskTimeTrackingSummary `xorm:"-" json:"time_tracking_summary,omitempty"`
+
+	// Total tracked time for this task in seconds. Only present when fetching tasks with the `expand` parameter set to `time_tracking_summary`.
+	TimeTrackingTotal *int64 `xorm:"-" json:"time_tracking_total,omitempty"`
+
 	// Behaves exactly the same as with the TaskCollection.Expand parameter
 	Expand    []TaskCollectionExpandable `xorm:"-" json:"-" query:"expand"`
 	ExpandArr []TaskCollectionExpandable `xorm:"-" json:"-" query:"expand[]"`
@@ -847,6 +853,11 @@ func addMoreInfoToTasks(s *xorm.Session, taskMap map[int64]*Task, a web.Auth, vi
 				err = addIsUnreadToTasks(s, taskIDs, taskMap, a)
 				if err != nil {
 					return
+				}
+			case TaskCollectionExpandTimeTrackingSummary:
+				err = addTimeTrackingSummaryToTasks(s, taskIDs, taskMap)
+				if err != nil {
+					return err
 				}
 			}
 			expanded[expandable] = true

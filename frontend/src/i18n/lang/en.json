@@ -1036,10 +1036,10 @@
         "text1": "Are you sure you want to remove this task?",
         "text2": "This will also remove all attachments, reminders and relations associated with this task and cannot be undone!"
       },
-      "actions": {
-        "assign": "Assign to User",
-        "label": "Add Labels",
-        "milestone": "Set Milestone",
+        "actions": {
+          "assign": "Assign to User",
+          "label": "Add Labels",
+          "milestone": "Set Milestone",
         "priority": "Set Priority",
         "status": "Set Status",
         "dueDate": "Set Due Date",
@@ -1052,12 +1052,13 @@
         "attachments": "Add Attachments",
         "relatedTasks": "Add Relation",
         "moveProject": "Move",
-        "duplicate": "Duplicate",
-        "color": "Set Color",
-        "delete": "Delete",
-        "favorite": "Add to Favorites",
-        "unfavorite": "Remove from Favorites"
-      }
+          "duplicate": "Duplicate",
+          "color": "Set Color",
+          "timeTracking": "Time Tracking",
+          "delete": "Delete",
+          "favorite": "Add to Favorites",
+          "unfavorite": "Remove from Favorites"
+        }
     },
     "attributes": {
       "assignees": "Assignees",
@@ -1132,6 +1133,20 @@
       "permalink": "Copy permalink to this comment",
       "sortNewestFirst": "Newest first",
       "sortOldestFirst": "Oldest first"
+    },
+    "timeTracking": {
+      "title": "Time Tracking",
+      "show": "Show time tracking",
+      "hide": "Hide time tracking",
+      "open": "Open Time Tracking",
+      "add": "Add Time",
+      "empty": "No time tracked yet.",
+      "total": "Total tracked time",
+      "totalWithTime": "Tracked: {time}",
+      "startTimer": "Start Timer",
+      "stopTimer": "Stop Timer",
+      "timerStarted": "The timer has been started.",
+      "timerStopped": "The timer has been stopped."
     },
     "mention": {
       "noUsersFound": "No users found"

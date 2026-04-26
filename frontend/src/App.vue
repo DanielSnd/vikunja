@@ -18,6 +18,7 @@
 			<template v-if="showAuthLayout">
 				<AppHeader />
 				<ContentAuth />
+				<TimeTrackingWidget v-if="!isQuickAddMode" />
 			</template>
 			<ContentLinkShare v-else-if="authStore.authLinkShare" />
 			<NoAuthWrapper
@@ -65,6 +66,7 @@ import {useBodyClass} from '@/composables/useBodyClass'
 import QuickAddOverlay from '@/components/quick-actions/QuickAddOverlay.vue'
 import AddToHomeScreen from '@/components/home/AddToHomeScreen.vue'
 import DemoMode from '@/components/home/DemoMode.vue'
+import TimeTrackingWidget from '@/components/tasks/partials/TimeTrackingWidget.vue'
 import {AUTH_ROUTE_NAMES} from '@/constants/authRouteNames'
 import {useQuickAddMode} from '@/composables/useQuickAddMode'
 

@@ -90,6 +90,12 @@
                 "subject_new": "%[1]s mentioned you in a new task \"%[2]s\" (%[3]s)",
                 "subject": "%[1]s mentioned you in a task \"%[2]s\" (%[3]s)"
             },
+            "timer": {
+                "auto_stopped": {
+                    "subject": "Your timer for \"%[1]s\" (%[2]s) was auto-stopped",
+                    "message": "Your timer for \"%[1]s\" (%[2]s) was stopped automatically after running for 8 hours."
+                }
+            },
             "overdue": {
                 "subject": "Task \"%[1]s\" (%[2]s) is overdue",
                 "message": "This is a friendly reminder of the task \"%[1]s\" (%[2]s) which is overdue %[3]s and not yet done.",

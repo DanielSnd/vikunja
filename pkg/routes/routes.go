@@ -536,6 +536,8 @@ func registerAPIRoutes(a *echo.Group) {
 		},
 	}
 	a.PUT("/projects/:project/tasks", taskHandler.CreateWeb)
+	a.GET("/tasks/time-tracking/timer", apiv1.GetCurrentTaskTimeTrackingTimer)
+	a.POST("/tasks/time-tracking/timer/adjust", apiv1.AdjustCurrentTaskTimeTrackingTimer)
 	a.GET("/tasks/:projecttask", taskHandler.ReadOneWeb)
 	a.GET("/projects/:project/tasks/by-index/:index", taskHandler.ReadOneWeb)
 	a.GET("/tasks", taskCollectionHandler.ReadAllWeb)
@@ -635,6 +637,19 @@ func registerAPIRoutes(a *echo.Group) {
 		a.POST("/tasks/:task/comments/:commentid", taskCommentHandler.UpdateWeb)
 		a.GET("/tasks/:task/comments/:commentid", taskCommentHandler.ReadOneWeb)
 	}
+
+	taskTimeTrackingHandler := &handler.WebHandler{
+		EmptyStruct: func() handler.CObject {
+			return &models.TaskTimeTracking{}
+		},
+	}
+	a.GET("/tasks/:task/time-tracking", taskTimeTrackingHandler.ReadAllWeb)
+	a.PUT("/tasks/:task/time-tracking", taskTimeTrackingHandler.CreateWeb)
+	a.PUT("/tasks/:task/time-tracking/timer", apiv1.StartTaskTimeTrackingTimer)
+	a.POST("/tasks/:task/time-tracking/timer/stop", apiv1.StopTaskTimeTrackingTimer)
+	a.GET("/tasks/:task/time-tracking/:timetracking", taskTimeTrackingHandler.ReadOneWeb)
+	a.POST("/tasks/:task/time-tracking/:timetracking", taskTimeTrackingHandler.UpdateWeb)
+	a.DELETE("/tasks/:task/time-tracking/:timetracking", taskTimeTrackingHandler.DeleteWeb)
 
 	labelHandler := &handler.WebHandler{
 		EmptyStruct: func() handler.CObject {

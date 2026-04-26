@@ -402,7 +402,7 @@ const taskList = useTaskList(
 	() => props.projectId, 
 	() => props.viewId, 
 	sortBy.value,
-	() => ['comment_count', 'is_unread'],
+	() => ['comment_count', 'is_unread', 'time_tracking_summary'],
 )
 
 const {

@@ -91,6 +91,13 @@
 			>
 				<Icon icon="history" />
 			</span>
+			<span
+				v-if="task.timeTrackingTotal"
+				v-tooltip="$t('task.timeTracking.totalWithTime', {time: formatDuration(task.timeTrackingTotal)})"
+				class="project-task-icon"
+			>
+				<TimeTrackingIndicator :total-seconds="task.timeTrackingTotal" />
+			</span>
 		</span>
 
 		<ChecklistSummary :task="task" />
@@ -115,10 +122,12 @@ import type {ITask} from '@/modelTypes/ITask'
 import PriorityLabel from '@/components/tasks/partials/PriorityLabel.vue'
 import Labels from '@/components/tasks/partials/Labels.vue'
 import ChecklistSummary from '@/components/tasks/partials/ChecklistSummary.vue'
+import TimeTrackingIndicator from '@/components/tasks/partials/TimeTrackingIndicator.vue'
 
 import ColorBubble from '@/components/misc/ColorBubble.vue'
 
 import {formatDisplayDate, formatISO, formatDateLong} from '@/helpers/time/formatDate'
+import {formatDuration} from '@/helpers/time/formatDuration'
 
 import {useProjectStore} from '@/stores/projects'
 import AssigneeList from '@/components/tasks/partials/AssigneeList.vue'

@@ -25,6 +25,7 @@ import MilestoneModel from './milestone'
 import type {ITaskReminder} from '@/modelTypes/ITaskReminder'
 import TaskReminderModel from '@/models/taskReminder'
 import TaskCommentModel from '@/models/taskComment.ts'
+import {normalizeTaskTimeTrackingSummary} from '@/models/taskTimeTracking'
 
 export function	getHexColor(hexColor: string): string | undefined {
 	if (hexColor === '' || hexColor === '#') {
@@ -95,6 +96,8 @@ export default class TaskModel extends AbstractModel<ITask> implements ITask {
 	
 	reactions = {}
 	comments = []
+	timeTrackingSummary = []
+	timeTrackingTotal = 0
 
 	createdBy: IUser = UserModel
 	created: Date = null
@@ -167,6 +170,8 @@ export default class TaskModel extends AbstractModel<ITask> implements ITask {
 		// If we would use the camel cased value here, it would lose the reactions - emojis can't be camel cased.
 		// The comments will be camel cased anyway in the constructor of the task comment model.
 		this.comments = (data.comments || []).map(c => new TaskCommentModel(c))
+		this.timeTrackingSummary = normalizeTaskTimeTrackingSummary(data.timeTrackingSummary || data.time_tracking_summary || [])
+		this.timeTrackingTotal = Number(data.timeTrackingTotal ?? data.time_tracking_total ?? 0)
 
 		// We can't convert emojis to camel case, hence we do this manually
 		this.reactions = {}

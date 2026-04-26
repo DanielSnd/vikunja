@@ -468,3 +468,29 @@ func (n *DataExportReadyNotification) ToDB() interface{} {
 func (n *DataExportReadyNotification) Name() string {
 	return "data.export.ready"
 }
+
+// TaskTimerAutoStoppedNotification is sent when a running task timer is auto-stopped after eight hours.
+type TaskTimerAutoStoppedNotification struct {
+	Task  *Task                  `json:"task"`
+	Timer *TaskTimeTrackingTimer `json:"timer"`
+}
+
+func (n *TaskTimerAutoStoppedNotification) ToMail(lang string) *notifications.Mail {
+	return notifications.NewMail().
+		Subject(i18n.T(lang, "notifications.task.timer.auto_stopped.subject", n.Task.Title, n.Task.GetFullIdentifier())).
+		Line(i18n.T(lang, "notifications.task.timer.auto_stopped.message", n.Task.Title, n.Task.GetFullIdentifier())).
+		Action(i18n.T(lang, "notifications.common.actions.open_task"), n.Task.GetFrontendURL()).
+		IncludeLinkToSettings(lang)
+}
+
+func (n *TaskTimerAutoStoppedNotification) ToDB() interface{} {
+	return n
+}
+
+func (n *TaskTimerAutoStoppedNotification) Name() string {
+	return "task.timer.auto_stopped"
+}
+
+func (n *TaskTimerAutoStoppedNotification) SubjectID() int64 {
+	return n.Task.ID
+}

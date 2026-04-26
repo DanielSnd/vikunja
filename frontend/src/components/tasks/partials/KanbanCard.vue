@@ -87,6 +87,14 @@
 				/>
 
 				<span
+					v-if="task.timeTrackingTotal"
+					v-tooltip="$t('task.timeTracking.totalWithTime', {time: formatDuration(task.timeTrackingTotal)})"
+					class="header-time-tracking"
+				>
+					<TimeTrackingIndicator :total-seconds="task.timeTrackingTotal" />
+				</span>
+
+				<span
 					v-if="task.milestone"
 					v-tooltip="task.milestone.name"
 					class="milestone-diamond"
@@ -237,6 +245,7 @@ import ProgressBar from '@/components/misc/ProgressBar.vue'
 import Labels from '@/components/tasks/partials/Labels.vue'
 import ChecklistSummary from './ChecklistSummary.vue'
 import CommentCount from './CommentCount.vue'
+import TimeTrackingIndicator from './TimeTrackingIndicator.vue'
 
 import {getHexColor} from '@/models/task'
 import type {ITask} from '@/modelTypes/ITask'
@@ -246,6 +255,7 @@ import {SUPPORTED_IMAGE_SUFFIX} from '@/models/attachment'
 import AttachmentService, {PREVIEW_SIZE} from '@/services/attachment'
 
 import {formatDateLong, formatDisplayDate, formatISO} from '@/helpers/time/formatDate'
+import {formatDuration} from '@/helpers/time/formatDuration'
 import {colorIsDark} from '@/helpers/color/colorIsDark'
 import {useTaskStore} from '@/stores/tasks'
 import AssigneeList from '@/components/tasks/partials/AssigneeList.vue'
@@ -886,6 +896,17 @@ $task-background: var(--white);
 	margin-top: 0.5rem;
 	width: 100%;
 	height: 0.375rem;
+}
+
+.header-time-tracking {
+	position: absolute;
+	inset-inline-start: .875rem;
+	inset-block-end: .625rem;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	color: var(--grey-700);
 }
 
 .milestone-diamond {

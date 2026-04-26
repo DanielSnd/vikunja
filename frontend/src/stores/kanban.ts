@@ -268,7 +268,7 @@ export const useKanbanStore = defineStore('kanban', () => {
 		try {
 			const newBuckets = await taskCollectionService.getAll({projectId, viewId}, {
 				...params,
-				expand: ['comment_count', 'is_unread'],
+				expand: ['comment_count', 'is_unread', 'time_tracking_summary'],
 				per_page: TASKS_PER_BUCKET,
 			})
 			setBuckets(newBuckets)
@@ -307,7 +307,7 @@ export const useKanbanStore = defineStore('kanban', () => {
 		params.filter = `${params.filter === '' ? '' : params.filter + ' && '}bucket_id = ${bucketId}`
 		params.filter_timezone = authStore.settings.timezone
 		params.per_page = TASKS_PER_BUCKET
-		params.expand = ['comment_count', 'is_unread']
+		params.expand = ['comment_count', 'is_unread', 'time_tracking_summary']
 
 		const taskService = new TaskCollectionService()
 		try {

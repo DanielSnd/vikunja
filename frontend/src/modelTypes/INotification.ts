@@ -10,6 +10,7 @@ export const NOTIFICATION_NAMES = {
 	'TASK_ASSIGNED': 'task.assigned',
 	'TASK_DELETED': 'task.deleted',
 	'TASK_REMINDER': 'task.reminder',
+	'TASK_TIMER_AUTO_STOPPED': 'task.timer.auto_stopped',
 	'PROJECT_CREATED': 'project.created',
 	'TEAM_MEMBER_ADDED': 'team.member.added',
 	'TASK_MENTIONED': 'task.mentioned',
@@ -43,6 +44,10 @@ interface NotificationTaskReminder extends Notification {
 	project: IProject
 }
 
+interface NotificationTaskTimerAutoStopped {
+	task: ITask
+}
+
 interface NotificationMemberAdded extends Notification {
 	member: IUser
 	team: ITeam
@@ -51,7 +56,7 @@ interface NotificationMemberAdded extends Notification {
 export interface INotification extends IAbstract {
 	id: number
 	name: string
-	notification: NotificationTaskComment | NotificationTask | NotificationAssigned | NotificationCreated | NotificationMemberAdded | NotificationTaskReminder
+	notification: NotificationTaskComment | NotificationTask | NotificationAssigned | NotificationCreated | NotificationMemberAdded | NotificationTaskReminder | NotificationTaskTimerAutoStopped
 	read: boolean
 	readAt: Date | null
 

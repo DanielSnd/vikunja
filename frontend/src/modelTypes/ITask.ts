@@ -18,6 +18,7 @@ import type {PartialWithId} from '@/types/PartialWithId'
 import type {ITaskReminder} from '@/modelTypes/ITaskReminder'
 import type {IReactionPerEntity} from '@/modelTypes/IReaction'
 import type {ITaskComment} from '@/modelTypes/ITaskComment.ts'
+import type {ITaskTimeTrackingSummary} from '@/modelTypes/ITaskTimeTracking'
 
 export interface ITask extends IAbstract {
 	id: number
@@ -57,6 +58,8 @@ export interface ITask extends IAbstract {
 	reactions: IReactionPerEntity
 	comments: ITaskComment[]
 	commentCount?: number
+	timeTrackingSummary: ITaskTimeTrackingSummary[]
+	timeTrackingTotal?: number
 
 	createdBy: IUser
 	created: Date

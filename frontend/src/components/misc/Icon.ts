@@ -50,6 +50,7 @@ import {
 	faList,
 	faListOl,
 	faLock,
+	faMinus,
 	faPaperclip,
 	faPaste,
 	faPen,
@@ -160,6 +161,7 @@ library.add(faLayerGroup)
 library.add(faList)
 library.add(faListOl)
 library.add(faLock)
+library.add(faMinus)
 library.add(faPaperclip)
 library.add(faPaste)
 library.add(faPen)

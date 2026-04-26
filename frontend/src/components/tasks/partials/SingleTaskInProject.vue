@@ -154,6 +154,13 @@
 					:task="task"
 					class="project-task-icon"
 				/>
+				<span
+					v-if="task.timeTrackingTotal"
+					v-tooltip="$t('task.timeTracking.totalWithTime', {time: formatDuration(task.timeTrackingTotal)})"
+					class="project-task-icon"
+				>
+					<TimeTrackingIndicator :total-seconds="task.timeTrackingTotal" />
+				</span>
 			</span>
 
 
@@ -234,6 +241,7 @@ import TaskGlanceTooltip from '@/components/tasks/partials/TaskGlanceTooltip.vue
 import DeferTask from '@/components/tasks/partials/DeferTask.vue'
 import ChecklistSummary from '@/components/tasks/partials/ChecklistSummary.vue'
 import CommentCount from '@/components/tasks/partials/CommentCount.vue'
+import TimeTrackingIndicator from '@/components/tasks/partials/TimeTrackingIndicator.vue'
 
 import ProgressBar from '@/components/misc/ProgressBar.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
@@ -244,6 +252,7 @@ import Popup from '@/components/misc/Popup.vue'
 import TaskService from '@/services/task'
 
 import {formatDisplayDate, formatISO, formatDateLong} from '@/helpers/time/formatDate'
+import {formatDuration} from '@/helpers/time/formatDuration'
 import {success} from '@/message'
 
 import {useProjectStore} from '@/stores/projects'

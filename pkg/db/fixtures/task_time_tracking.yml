@@ -1,0 +1,18 @@
+- id: 1
+  task_id: 1
+  user_id: 1
+  time_spent: 1800
+  tracked_at: 2024-01-10 09:00:00
+  is_snoozed: false
+- id: 2
+  task_id: 1
+  user_id: 5
+  time_spent: 2700
+  tracked_at: 2024-01-10 10:00:00
+  is_snoozed: false
+- id: 3
+  task_id: 14
+  user_id: 5
+  time_spent: 28800
+  tracked_at: 2024-01-11 08:00:00
+  is_snoozed: true

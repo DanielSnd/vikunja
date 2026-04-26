@@ -476,6 +476,34 @@
 						</div>
 					</div>
 
+					<!-- Time Tracking -->
+					<div
+						ref="timeTrackingSection"
+						class="content details comments-section"
+					>
+						<BaseButton
+							class="foldout-toggle"
+							:aria-expanded="showTimeTracking"
+							@click="showTimeTracking = !showTimeTracking"
+						>
+							<span class="foldout-toggle-label">
+								<span class="icon is-grey">
+									<Icon :icon="['far', 'clock']" />
+								</span>
+								{{ showTimeTracking ? $t('task.timeTracking.hide') : $t('task.timeTracking.show') }}
+							</span>
+							<Icon :icon="showTimeTracking ? 'chevron-up' : 'chevron-down'" />
+						</BaseButton>
+
+						<TimeTracking
+							v-if="showTimeTracking"
+							:task-id="taskId"
+							:task-title="task.title"
+							:can-write="canWrite"
+							@summaryChanged="updateTimeTrackingSummary"
+						/>
+					</div>
+
 					<!-- Comments -->
 					<div class="content details comments-section">
 						<BaseButton
@@ -676,6 +704,25 @@
 							{{ $t('task.detail.actions.attachments') }}
 						</XButton>
 						<XButton
+							v-tooltip="taskTimerButtonLabel"
+							variant="secondary"
+							:aria-label="taskTimerButtonLabel"
+							:icon="isTaskTimerRunning ? 'stop' : ['far', 'clock']"
+							:disabled="isAnotherTaskTimerRunning"
+							@click="toggleTaskTimer()"
+						>
+							{{ taskTimerButtonLabel }}
+						</XButton>
+						<XButton
+							v-tooltip="$t('task.timeTracking.open')"
+							variant="secondary"
+							:aria-label="$t('task.timeTracking.open')"
+							:icon="['far', 'clock']"
+							@click="openTimeTracking()"
+						>
+							{{ $t('task.timeTracking.open') }}
+						</XButton>
+						<XButton
 							v-shortcut="'KeyR'"
 							v-tooltip="$t('task.detail.actions.relatedTasks')"
 							variant="secondary"
@@ -844,6 +891,7 @@ import StatusSelect from '@/components/tasks/partials/StatusSelect.vue'
 import RelatedTasks from '@/components/tasks/partials/RelatedTasks.vue'
 import Reminders from '@/components/tasks/partials/Reminders.vue'
 import RepeatAfter from '@/components/tasks/partials/RepeatAfter.vue'
+import TimeTracking from '@/components/tasks/partials/TimeTracking.vue'
 import TaskSubscription from '@/components/misc/Subscription.vue'
 import CustomTransition from '@/components/misc/CustomTransition.vue'
 import AssigneeList from '@/components/tasks/partials/AssigneeList.vue'
@@ -863,6 +911,7 @@ import {useKanbanStore} from '@/stores/kanban'
 import {useProjectStore} from '@/stores/projects'
 import {useAuthStore} from '@/stores/auth'
 import {useBaseStore} from '@/stores/base'
+import {useTaskTimerStore} from '@/stores/taskTimer'
 
 import {useTitle} from '@/composables/useTitle'
 import {useTaskDetailShortcuts} from '@/composables/useTaskDetailShortcuts'
@@ -892,11 +941,13 @@ const taskStore = useTaskStore()
 const kanbanStore = useKanbanStore()
 const authStore = useAuthStore()
 const baseStore = useBaseStore()
+const taskTimerStore = useTaskTimerStore()
 const {subscribe, connected: wsConnected} = useWebSocket()
 
 const task = ref<ITask>(new TaskModel())
 const showComments = ref(false)
 const showAttachments = ref(false)
+const showTimeTracking = ref(false)
 const commentCount = ref(0)
 const hasAttachments = computed(() => (task.value.attachments?.length ?? 0) > 0)
 const remindersDefaultRelativeTo = computed(() => {
@@ -1032,6 +1083,7 @@ async function scrollToHeading() {
 }
 
 const attachmentsRef = ref<InstanceType<typeof Attachments> | null>(null)
+const timeTrackingSection = ref<HTMLElement | null>(null)
 
 const taskViewContainer = ref<HTMLElement | null>(null)
 const scrollContainer = ref<HTMLElement | null>(null)
@@ -1112,15 +1164,23 @@ onMounted(async () => {
 	await nextTick()
 	resolveScrollContainer()
 	updateScrollable()
+	await taskTimerStore.loadCurrent()
 })
 
 const taskService = shallowReactive(new TaskService())
 
+const currentTimer = computed(() => taskTimerStore.currentTimer)
+const isTaskTimerRunning = computed(() => currentTimer.value?.status === 'running' && currentTimer.value.taskId === task.value.id)
+const isAnotherTaskTimerRunning = computed(() => currentTimer.value?.status === 'running' && currentTimer.value.taskId !== task.value.id)
+const taskTimerButtonLabel = computed(() => isTaskTimerRunning.value ? t('task.timeTracking.stopTimer') : t('task.timeTracking.startTimer'))
+
 async function loadTask(id: ITask['id']) {
-	const loaded = await taskService.get({id}, {expand: ['reactions', 'comments', 'is_unread', 'buckets']})
+	const loaded = await taskService.get({id}, {expand: ['reactions', 'comments', 'is_unread', 'buckets', 'time_tracking_summary']})
 	Object.assign(task.value, loaded)
+	taskTimerStore.hydrateCurrentTask({id: loaded.id, title: loaded.title})
 	updateCommentCount(loaded.commentCount ?? loaded.comments?.length ?? 0)
 	showComments.value = route.hash.startsWith('#comment-')
+	showTimeTracking.value = showTimeTracking.value || (loaded.timeTrackingTotal ?? 0) > 0
 	taskColor.value = task.value.hexColor
 	setActiveFields()
 
@@ -1190,6 +1250,33 @@ const reloadTaskFromRealtime = useDebounceFn(() => {
 		console.warn('Failed to reload task from realtime event:', e)
 	})
 }, 300)
+
+async function toggleTaskTimer() {
+	if (isTaskTimerRunning.value) {
+		await taskTimerStore.stop(task.value.id)
+		success({message: t('task.timeTracking.timerStopped')})
+		await loadTask(task.value.id)
+		return
+	}
+
+	await taskTimerStore.start({id: task.value.id, title: task.value.title})
+	showTimeTracking.value = true
+	success({message: t('task.timeTracking.timerStarted')})
+}
+
+function openTimeTracking() {
+	showTimeTracking.value = true
+	nextTick(() => {
+		if (timeTrackingSection.value) {
+			scrollIntoView(timeTrackingSection.value)
+		}
+	})
+}
+
+function updateTimeTrackingSummary({total, summary}: {total: number, summary: ITask['timeTrackingSummary']}) {
+	task.value.timeTrackingTotal = total
+	task.value.timeTrackingSummary = summary
+}
 
 let unsubscribeTaskWs: (() => void) | null = null
 

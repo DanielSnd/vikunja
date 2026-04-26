@@ -59,6 +59,8 @@ func GetTables() []interface{} {
 		&TaskRelation{},
 		&TaskAttachment{},
 		&TaskComment{},
+		&TaskTimeTracking{},
+		&TaskTimeTrackingTimer{},
 		&Bucket{},
 		&UnsplashPhoto{},
 		&SavedFilter{},
