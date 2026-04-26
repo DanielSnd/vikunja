@@ -650,6 +650,7 @@ func registerAPIRoutes(a *echo.Group) {
 	a.GET("/tasks/:task/time-tracking/:timetracking", taskTimeTrackingHandler.ReadOneWeb)
 	a.POST("/tasks/:task/time-tracking/:timetracking", taskTimeTrackingHandler.UpdateWeb)
 	a.DELETE("/tasks/:task/time-tracking/:timetracking", taskTimeTrackingHandler.DeleteWeb)
+	a.GET("/reports/time-tracking", apiv1.TaskTimeTrackingReport)
 
 	labelHandler := &handler.WebHandler{
 		EmptyStruct: func() handler.CObject {

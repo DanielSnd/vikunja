@@ -214,6 +214,14 @@ const router = createRouter({
 			}),
 		},
 		{
+			path: '/reports/time-tracking',
+			name: 'reports.time-tracking',
+			component: () => import('@/views/tasks/TimeTrackingReportView.vue'),
+			meta: {
+				title: 'timeTrackingReport.title',
+			},
+		},
+		{
 			// Redirect old list routes to the respective project routes
 			// see: https://router.vuejs.org/guide/essentials/dynamic-matching.html#catch-all-404-not-found-route
 			path: '/lists:pathMatch(.*)*',

@@ -546,6 +546,7 @@
       "selectedUndoneSuccess": "The selected cards were marked as undone.",
       "selectedUserAssignedSuccess": "The selected cards were assigned to the user.",
       "selectedMilestoneAssignedSuccess": "The selected cards were assigned to the milestone.",
+      "selectedMilestoneClearedSuccess": "Milestones were removed from the selected cards.",
       "selectedBucketMovedSuccess": "The selected cards were moved to the bucket.",
       "selectedCardsDeletedSuccess": "The selected cards were deleted.",
       "cardEffortShortcutHint": "Press 0-9 to change effort",
@@ -789,6 +790,7 @@
   "navigation": {
     "overview": "Overview",
     "upcoming": "Upcoming",
+    "reports": "Reports",
     "settings": "Settings",
     "imprint": "Imprint",
     "privacy": "Privacy Policy",
@@ -831,6 +833,44 @@
     "closeQuickActions": "Close quick actions",
     "skipToContent": "Skip to main content",
     "sortBy": "Sort by"
+  },
+  "timeTrackingReport": {
+    "title": "Time Tracking Reports",
+    "description": "Explore tracked time over a period and break it down by project or label.",
+    "empty": "No tracked time was found for the selected filters.",
+    "groupBy": {
+      "project": "Project",
+      "label": "Label"
+    },
+    "filters": {
+      "groupBy": "Group by",
+      "period": "Period",
+      "projects": "Projects",
+      "labels": "Labels",
+      "projectsPlaceholder": "Filter by project",
+      "labelsPlaceholder": "Filter by label"
+    },
+    "summary": {
+      "total": "Total tracked",
+      "groups": "Groups",
+      "average": {
+        "daily": "Daily average",
+        "weekly": "Weekly average",
+        "monthly": "Monthly average"
+      }
+    },
+    "chart": {
+      "title": {
+        "daily": "Daily trend",
+        "weekly": "Weekly trend",
+        "monthly": "Monthly trend"
+      }
+    },
+    "table": {
+      "total": "Total",
+      "average": "Daily average",
+      "share": "Share"
+    }
   },
   "input": {
     "projectColor": "Project color",
@@ -1054,6 +1094,7 @@
         "moveProject": "Move",
           "duplicate": "Duplicate",
           "color": "Set Color",
+          "more": "More Actions",
           "timeTracking": "Time Tracking",
           "delete": "Delete",
           "favorite": "Add to Favorites",
@@ -1143,6 +1184,8 @@
       "empty": "No time tracked yet.",
       "total": "Total tracked time",
       "totalWithTime": "Tracked: {time}",
+      "active": "Time tracking is active",
+      "activeWithTime": "Time tracking is active. Tracked: {time}",
       "startTimer": "Start Timer",
       "stopTimer": "Stop Timer",
       "timerStarted": "The timer has been started.",

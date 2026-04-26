@@ -1,7 +1,8 @@
 <template>
 	<span
-		v-if="totalSeconds > 0"
+		v-if="shouldRender"
 		class="time-tracking-indicator"
+		:class="{'time-tracking-indicator--active': active}"
 		:title="tooltip"
 	>
 		<svg
@@ -32,11 +33,18 @@
 
 <script setup lang="ts">
 import {computed} from 'vue'
+import {useI18n} from 'vue-i18n'
+
 import {formatDuration} from '@/helpers/time/formatDuration'
 
 const props = defineProps<{
 	totalSeconds: number
+	active?: boolean
 }>()
+
+const {t} = useI18n()
+
+const shouldRender = computed(() => props.totalSeconds > 0 || props.active)
 
 const fillRatio = computed(() => {
 	return Math.max(0, Math.min(1, 1 - Math.exp(-props.totalSeconds / 14400)))
@@ -44,11 +52,22 @@ const fillRatio = computed(() => {
 
 const fillHeight = computed(() => fillRatio.value * 16)
 
-const tooltip = computed(() => formatDuration(props.totalSeconds))
+const tooltip = computed(() => {
+	if (props.active) {
+		if (props.totalSeconds > 0) {
+			return t('task.timeTracking.activeWithTime', {time: formatDuration(props.totalSeconds)})
+		}
+
+		return t('task.timeTracking.active')
+	}
+
+	return formatDuration(props.totalSeconds)
+})
 </script>
 
 <style lang="scss" scoped>
 .time-tracking-indicator {
+	position: relative;
 	display: inline-flex;
 	inline-size: 1rem;
 	block-size: 1rem;
@@ -79,5 +98,34 @@ const tooltip = computed(() => formatDuration(props.totalSeconds))
 	stroke-linecap: round;
 	stroke-linejoin: round;
 	stroke-width: 2;
+}
+
+.time-tracking-indicator--active {
+	color: var(--success);
+}
+
+.time-tracking-indicator--active::after {
+	content: '';
+	position: absolute;
+	inset-block-start: -.125rem;
+	inset-inline-end: -.125rem;
+	inline-size: .4rem;
+	block-size: .4rem;
+	border-radius: 50%;
+	background: currentColor;
+	box-shadow: 0 0 0 .12rem color-mix(in srgb, currentColor 24%, transparent);
+	animation: time-tracking-indicator-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes time-tracking-indicator-pulse {
+	0%, 100% {
+		transform: scale(1);
+		opacity: 1;
+	}
+
+	50% {
+		transform: scale(1.18);
+		opacity: .72;
+	}
 }
 </style>

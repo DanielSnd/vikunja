@@ -95,7 +95,7 @@ async function stopTimer() {
 <style lang="scss" scoped>
 .time-tracking-widget {
 	position: fixed;
-	inset-inline-start: 1rem;
+	inset-inline-end: 1rem;
 	inset-block-end: 1rem;
 	z-index: 40;
 	display: flex;

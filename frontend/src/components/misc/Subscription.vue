@@ -1,9 +1,21 @@
 <template>
+	<BaseButton
+		v-if="type === 'button' && iconOnly"
+		v-tooltip="tooltipText"
+		class="subscription-icon-only"
+		:class="{'is-disabled': disabled}"
+		:disabled="disabled"
+		:aria-label="tooltipText || buttonText"
+		@click="changeSubscription"
+	>
+		<Icon :icon="iconName" />
+	</BaseButton>
 	<XButton
-		v-if="type === 'button'"
+		v-else-if="type === 'button'"
 		v-tooltip="tooltipText"
 		variant="secondary"
 		:icon="iconName"
+		:aria-label="tooltipText || buttonText"
 		:disabled="disabled"
 		@click="changeSubscription"
 	>
@@ -52,9 +64,11 @@ const props = withDefaults(defineProps<{
 	entityId: number,
 	isButton?: boolean,
 	type?: 'button' | 'dropdown',
+	iconOnly?: boolean,
 }>(), {
 	isButton: true,
 	type: 'button',
+	iconOnly: false,
 })
 
 const emit = defineEmits<{

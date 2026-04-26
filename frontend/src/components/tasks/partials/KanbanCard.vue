@@ -14,9 +14,7 @@
 		:data-task-id="task.id"
 		:data-project-id="task.projectId"
 		:data-is-overdue="isOverdue || undefined"
-		@click.exact="openTaskDetail()"
-		@click.ctrl="() => toggleTaskDone(task)"
-		@click.meta="() => toggleTaskDone(task)"
+		@click="handleCardClick"
 		@mouseenter="handleMouseEnter"
 		@mousemove="handleMouseMove"
 		@mouseleave="resetTilt"
@@ -87,11 +85,14 @@
 				/>
 
 				<span
-					v-if="task.timeTrackingTotal"
-					v-tooltip="$t('task.timeTracking.totalWithTime', {time: formatDuration(task.timeTrackingTotal)})"
+					v-if="task.timeTrackingTotal || isTaskTimerRunning"
+					v-tooltip="timeTrackingTooltip"
 					class="header-time-tracking"
 				>
-					<TimeTrackingIndicator :total-seconds="task.timeTrackingTotal" />
+					<TimeTrackingIndicator
+						:total-seconds="task.timeTrackingTotal"
+						:active="isTaskTimerRunning"
+					/>
 				</span>
 
 				<span
@@ -235,6 +236,7 @@
 
 <script lang="ts" setup>
 import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
+import {useI18n} from 'vue-i18n'
 import {useRouter} from 'vue-router'
 
 import {useGlobalNow} from '@/composables/useGlobalNow'
@@ -258,6 +260,7 @@ import {formatDateLong, formatDisplayDate, formatISO} from '@/helpers/time/forma
 import {formatDuration} from '@/helpers/time/formatDuration'
 import {colorIsDark} from '@/helpers/color/colorIsDark'
 import {useTaskStore} from '@/stores/tasks'
+import {useTaskTimerStore} from '@/stores/taskTimer'
 import AssigneeList from '@/components/tasks/partials/AssigneeList.vue'
 import EditAssignees from '@/components/tasks/partials/EditAssignees.vue'
 import {playPopSound} from '@/helpers/playPop'
@@ -285,6 +288,7 @@ const emit = defineEmits<{
 }>()
 
 const router = useRouter()
+const {t} = useI18n()
 
 const loadingInternal = ref(false)
 const cardRef = ref<HTMLElement | null>(null)
@@ -363,6 +367,7 @@ function resetTilt() {
 const color = computed(() => getHexColor(props.task.hexColor))
 
 const projectStore = useProjectStore()
+const taskTimerStore = useTaskTimerStore()
 
 const projectTitle = computed(() => {
 	if (props.projectId === props.task.projectId) {
@@ -380,6 +385,23 @@ const isOverdue = computed(() => (
 	props.task.dueDate.getTime() > 0 &&
 	props.task.dueDate.getTime() <= now.value.getTime()
 ))
+
+const isTaskTimerRunning = computed(() => (
+	taskTimerStore.currentTimer?.status === 'running' &&
+	taskTimerStore.currentTimer.taskId === props.task.id
+))
+
+const timeTrackingTooltip = computed(() => {
+	if (isTaskTimerRunning.value) {
+		if (props.task.timeTrackingTotal > 0) {
+			return t('task.timeTracking.activeWithTime', {time: formatDuration(props.task.timeTrackingTotal)})
+		}
+
+		return t('task.timeTracking.active')
+	}
+
+	return t('task.timeTracking.totalWithTime', {time: formatDuration(props.task.timeTrackingTotal)})
+})
 
 async function toggleTaskDone(task: ITask) {
 	const isRecurringTask = task.repeatAfter.amount > 0 || task.repeatMode === TASK_REPEAT_MODES.REPEAT_MODE_MONTH
@@ -416,6 +438,20 @@ function openTaskDetail() {
 		params: {id: props.task.id},
 		state: {backdropView: router.currentRoute.value.fullPath},
 	})
+}
+
+function handleCardClick(event: MouseEvent) {
+	if (event.altKey && props.selectable) {
+		toggleSelected()
+		return
+	}
+
+	if (event.ctrlKey || event.metaKey) {
+		void toggleTaskDone(props.task)
+		return
+	}
+
+	openTaskDetail()
 }
 
 function toggleSelected() {

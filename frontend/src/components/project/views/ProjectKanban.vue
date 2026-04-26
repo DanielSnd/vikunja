@@ -1150,15 +1150,12 @@ async function assignSelectedTasksToUser() {
 }
 
 async function assignSelectedTasksToMilestone() {
-	if (bulkMilestone.value === null) {
-		error({message: t('project.kanban.selectMilestone')})
-		return
-	}
-
 	await bulkUpdateSelectedTasks(
-		{milestoneId: bulkMilestone.value.id},
+		{milestoneId: bulkMilestone.value?.id ?? 0},
 		['milestone_id'],
-		t('project.kanban.selectedMilestoneAssignedSuccess'),
+		bulkMilestone.value === null
+			? t('project.kanban.selectedMilestoneClearedSuccess')
+			: t('project.kanban.selectedMilestoneAssignedSuccess'),
 	)
 }
 

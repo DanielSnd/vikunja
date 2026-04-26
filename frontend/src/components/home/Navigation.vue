@@ -50,6 +50,14 @@
 					</RouterLink>
 				</li>
 				<li>
+					<RouterLink :to="{ name: 'reports.time-tracking'}">
+						<span class="menu-item-icon icon">
+							<Icon icon="tachometer-alt" />
+						</span>
+						{{ $t('navigation.reports') }}
+					</RouterLink>
+				</li>
+				<li>
 					<RouterLink
 						v-shortcut="'KeyG KeyA'"
 						:to="{ name: 'labels.index'}"

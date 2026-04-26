@@ -85,17 +85,7 @@
 			:key="entry.id"
 			class="time-tracking__entry"
 		>
-			<div class="time-tracking__entry-meta">
-				<strong>{{ getDisplayName(entry.user) }}</strong>
-				<span>{{ formatDisplayDate(entry.trackedAt) }}</span>
-				<span
-					v-if="entry.isSnoozed"
-					class="time-tracking__snoozed"
-				>
-					<Icon icon="moon" />
-				</span>
-			</div>
-
+			
 			<div
 				v-if="editingId === entry.id"
 				class="time-tracking__editor"
@@ -119,26 +109,43 @@
 				v-else
 				class="time-tracking__entry-row"
 			>
-				<BaseButton
-					class="time-tracking__duration"
-					@click="beginEdit(entry)"
-				>
-					{{ formatDuration(entry.timeSpent) }}
-				</BaseButton>
+				<div class="time-tracking__entry-main">
+					<BaseButton
+						class="time-tracking__duration"
+						@click="beginEdit(entry)"
+					>
+						{{ formatDuration(entry.timeSpent) }}
+					</BaseButton>
 
-				<div
-					v-if="entry.user.id === authStore.info.id"
-					class="time-tracking__actions"
-				>
-					<BaseButton @click="adjustEntry(entry, -300)">
-						<Icon icon="minus" />
-					</BaseButton>
-					<BaseButton @click="adjustEntry(entry, 300)">
-						<Icon icon="plus" />
-					</BaseButton>
-					<BaseButton @click="deleteEntry(entry.id)">
-						<Icon icon="trash-alt" />
-					</BaseButton>
+					<div
+						v-if="entry.user.id === authStore.info.id"
+						class="time-tracking__actions"
+					>
+						<BaseButton @click="adjustEntry(entry, -300)">
+							<Icon icon="minus" />
+						</BaseButton>
+						<BaseButton @click="adjustEntry(entry, 300)">
+							<Icon icon="plus" />
+						</BaseButton>
+						<BaseButton @click="deleteEntry(entry.id)">
+							<Icon icon="trash-alt" />
+						</BaseButton>
+					</div>
+				</div>
+
+				<div class="time-tracking__entry-meta">
+					<User
+						:user="entry.user"
+						:avatar-size="24"
+						is-inline
+					/>
+					<span>{{ formatDisplayDate(entry.trackedAt) }}</span>
+					<span
+						v-if="entry.isSnoozed"
+						class="time-tracking__snoozed"
+					>
+						<Icon icon="moon" />
+					</span>
 				</div>
 			</div>
 		</div>
@@ -150,6 +157,7 @@ import {computed, ref, shallowReactive, watch} from 'vue'
 
 import BaseButton from '@/components/base/BaseButton.vue'
 import XButton from '@/components/input/Button.vue'
+import User from '@/components/misc/User.vue'
 import TaskTimeTrackingService from '@/services/taskTimeTracking'
 import {TaskTimeTrackingModel} from '@/models/taskTimeTracking'
 import type {ITaskTimeTracking, ITaskTimeTrackingSummary} from '@/modelTypes/ITaskTimeTracking'
@@ -337,7 +345,7 @@ async function adjustTimer(deltaSeconds: number) {
 
 .time-tracking__header,
 .time-tracking__entry-row,
-.time-tracking__entry-meta,
+.time-tracking__entry-main,
 .time-tracking__summary-item,
 .time-tracking__editor,
 .time-tracking__actions,
@@ -366,16 +374,40 @@ async function adjustTimer(deltaSeconds: number) {
 .time-tracking__entry {
 	display: flex;
 	flex-direction: column;
-	gap: .5rem;
+	gap: .75rem;
+}
+
+.time-tracking__entry-row {
+	justify-content: space-between;
+	flex-wrap: wrap;
+}
+
+.time-tracking__entry-main {
+	flex: 1 1 auto;
+	min-width: 0;
 }
 
 .time-tracking__entry-meta {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: .75rem;
+	margin-inline-start: auto;
 	color: var(--grey-600);
 	font-size: .875rem;
+	text-align: right;
 }
 
 .time-tracking__duration {
 	font-weight: 700;
+}
+
+.time-tracking__entry-meta :deep(.user) {
+	align-items: center;
+}
+
+.time-tracking__entry-meta :deep(.username) {
+	white-space: nowrap;
 }
 
 .time-tracking__empty,
