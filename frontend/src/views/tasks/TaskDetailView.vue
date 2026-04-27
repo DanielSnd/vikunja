@@ -123,6 +123,15 @@
 						<Icon :icon="isTaskTimerRunning ? 'stop' : ['far', 'clock']" />
 					</BaseButton>
 					<BaseButton
+						v-if="hasLinkedVisionBoard"
+						v-tooltip="$t('task.detail.actions.visionBoard')"
+						class="task-header-action-button"
+						:aria-label="$t('task.detail.actions.visionBoard')"
+						@click="openVisionBoard()"
+					>
+						<Icon icon="binoculars" />
+					</BaseButton>
+					<BaseButton
 						v-tooltip="$t('task.detail.actions.more')"
 						class="task-header-action-button"
 						:aria-label="$t('task.detail.actions.more')"
@@ -807,10 +816,11 @@
 							{{ $t('task.detail.actions.duplicate') }}
 						</XButton>
 						<XButton
+							v-if="!hasLinkedVisionBoard"
 							v-tooltip="$t('task.detail.actions.visionBoard')"
 							variant="secondary"
 							:aria-label="$t('task.detail.actions.visionBoard')"
-							icon="object-group"
+							icon="binoculars"
 							@click="openVisionBoard"
 						>
 							{{ $t('task.detail.actions.visionBoard') }}
@@ -1249,6 +1259,8 @@ const currentTimer = computed(() => taskTimerStore.currentTimer)
 const isTaskTimerRunning = computed(() => currentTimer.value?.status === 'running' && currentTimer.value.taskId === task.value.id)
 const isAnotherTaskTimerRunning = computed(() => currentTimer.value?.status === 'running' && currentTimer.value.taskId !== task.value.id)
 const taskTimerButtonLabel = computed(() => isTaskTimerRunning.value ? t('task.timeTracking.stopTimer') : t('task.timeTracking.startTimer'))
+const linkedVisionBoardId = ref<number | null>(null)
+const hasLinkedVisionBoard = computed(() => linkedVisionBoardId.value !== null)
 const showTaskMetadata = computed(() => !canWrite.value || showActionSidebar.value)
 const formattedTimeTrackingTotal = computed(() => {
 	if ((task.value.timeTrackingTotal ?? 0) <= 0) {
@@ -1258,9 +1270,23 @@ const formattedTimeTrackingTotal = computed(() => {
 	return formatDuration(task.value.timeTrackingTotal ?? 0)
 })
 
+async function loadLinkedVisionBoard() {
+	if (task.value.projectId <= 0 || task.value.id <= 0) {
+		linkedVisionBoardId.value = null
+		return
+	}
+
+	const boards = await visionBoardService.getAll({
+		projectId: task.value.projectId,
+	})
+
+	linkedVisionBoardId.value = boards.find(board => board.taskId === task.value.id)?.id ?? null
+}
+
 async function loadTask(id: ITask['id']) {
 	const loaded = await taskService.get({id}, {expand: ['reactions', 'comments', 'is_unread', 'buckets', 'time_tracking_summary']})
 	Object.assign(task.value, loaded)
+	await loadLinkedVisionBoard()
 	taskTimerStore.hydrateCurrentTask({id: loaded.id, title: loaded.title})
 	updateCommentCount(loaded.commentCount ?? loaded.comments?.length ?? 0)
 	showComments.value = route.hash.startsWith('#comment-')
@@ -1655,6 +1681,7 @@ async function openVisionBoard() {
 			title: task.value.title,
 		}))
 	}
+	linkedVisionBoardId.value = board.id
 
 	let projectWithViews = projectStore.projects[task.value.projectId]
 	if (!projectWithViews) {

@@ -15,6 +15,7 @@ import {
 	faCode,
 	faBars,
 	faBell,
+	faBinoculars,
 	faBolt,
 	faBullseye,
 	faCalendar,
@@ -127,6 +128,7 @@ library.add(faArchive)
 library.add(faArrowLeft)
 library.add(faBars)
 library.add(faBell)
+library.add(faBinoculars)
 library.add(faBellSlash)
 library.add(faCalendar)
 library.add(faCalendarAlt)

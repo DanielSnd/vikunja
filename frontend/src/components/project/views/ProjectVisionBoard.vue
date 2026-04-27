@@ -3134,10 +3134,12 @@ function stopPointerTracking() {
 .vision-board-empty-state__cards {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+	justify-items: start;
 	gap: 1rem;
 }
 
 .vision-board-empty-state__card {
+	inline-size: min(100%, 22rem);
 	padding: 0;
 	border: 0;
 	background: transparent;
