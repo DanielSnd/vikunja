@@ -68,12 +68,46 @@
 				</div>
 			</div>
 
-			<Message
+			<section
 				v-else-if="activeBoard === null"
-				class="vision-board-empty-state"
+				class="vision-board-empty-state vision-board-empty-state--select"
 			>
-				{{ boards.length > 0 ? $t('project.vision_board.emptySelection') : $t('project.vision_board.noBoards') }}
-			</Message>
+				<Message>
+					{{ boards.length > 0 ? $t('project.vision_board.emptySelection') : $t('project.vision_board.noBoards') }}
+				</Message>
+
+				<div
+					v-if="boards.length > 0"
+					class="vision-board-empty-state__cards"
+				>
+					<div
+						v-for="board in boards"
+						:key="`board-picker-${board.id}`"
+						class="vision-board-empty-state__card"
+						tabindex="0"
+						role="button"
+						@click="selectBoard(board.id)"
+						@keydown.enter.prevent="selectBoard(board.id)"
+						@keydown.space.prevent="selectBoard(board.id)"
+					>
+						<KanbanCard
+							v-if="boardTasks[board.id]"
+							:key="`board-task-${board.id}`"
+							:task="boardTasks[board.id]"
+							:project-id="props.projectId"
+							open-behavior="emit"
+							@open="() => selectBoard(board.id)"
+						/>
+						<div
+							v-else
+							class="vision-board-empty-state__card-fallback"
+						>
+							<h3>{{ board.taskTitle || board.title }}</h3>
+							<p>{{ $t('project.vision_board.selectBoard') }}</p>
+						</div>
+					</div>
+				</div>
+			</section>
 
 			<section
 				v-else
@@ -95,6 +129,13 @@
 						>
 							{{ $t(`project.vision_board.nodes.${kind}`) }}
 						</BaseButton>
+						<BaseButton
+							class="is-danger is-outlined"
+							@click="deleteActiveBoard"
+						>
+							<Icon icon="trash-alt" />
+							{{ $t('project.vision_board.delete') }}
+						</BaseButton>
 					</div>
 				</header>
 
@@ -111,10 +152,13 @@
 						ref="canvasRef"
 						class="vision-board-stage__canvas"
 						:class="{'vision-board-stage__canvas--connecting': pendingEdge !== null}"
+						tabindex="0"
 						@dblclick="onCanvasDoubleClick"
 						@mousedown="handleCanvasMouseDown"
 						@mousemove="handleCanvasPresenceMove"
 						@mouseleave="handleCanvasPresenceLeave"
+						@paste="handleCanvasPaste"
+						@scroll="handleCanvasScroll"
 					>
 						<div
 							class="vision-board-stage__surface-frame"
@@ -651,6 +695,7 @@
 import {computed, nextTick, onMounted, onUnmounted, ref, shallowReactive, watch} from 'vue'
 import {useRouteQuery} from '@vueuse/router'
 import {useDebounceFn, useResizeObserver, useThrottleFn} from '@vueuse/core'
+import {useI18n} from 'vue-i18n'
 
 import type {IAttachment} from '@/modelTypes/IAttachment'
 import type {ITask} from '@/modelTypes/ITask'
@@ -723,6 +768,7 @@ const props = defineProps<{
 	isLoadingProject: boolean,
 }>()
 
+const {t} = useI18n({useScope: 'global'})
 const visionBoardService = shallowReactive(new VisionBoardService())
 const attachmentService = shallowReactive(new AttachmentService())
 const visionBoardNodeService = shallowReactive(new VisionBoardNodeService())
@@ -732,6 +778,7 @@ const taskService = shallowReactive(new TaskService())
 const {connected: wsConnected, publish, subscribe} = useWebSocket()
 
 const boards = ref<IVisionBoard[]>([])
+const boardTasks = ref<Record<number, ITask>>({})
 const activeBoard = ref<IVisionBoard | null>(null)
 const foundTasks = ref<ITask[]>([])
 const selectedTask = ref<ITask | null>(null)
@@ -741,6 +788,7 @@ const nodeColors = ['#38425c', '#4e4f8d', '#2f5d73', '#6f4554', '#5f4b8b', '#6b5
 const connectionHandles: ConnectionHandle[] = ['top', 'left', 'right', 'bottom']
 const edgeStrokeColor = '#8c5fd3'
 const edgeColors = ['#8c5fd3', '#62e7c7', '#f59ac2', '#74b8ff', '#ffd166', '#ff8c69', '#c4a7ff']
+const edgeTargetGap = 18
 const cardQueries = ref<Record<number, string>>({})
 const cardSearchResults = ref<Record<number, ITask[]>>({})
 const cardTasks = ref<Record<number, ITask>>({})
@@ -764,7 +812,9 @@ const canvasRef = ref<HTMLElement | null>(null)
 const edgeLabelInputRef = ref<HTMLInputElement | null>(null)
 const videoUrlInputRef = ref<HTMLInputElement | null>(null)
 const cardTaskInputRef = ref<HTMLInputElement | null>(null)
-const canvasSize = ref({width: 2400, height: 1600})
+const baseCanvasSize = {width: 12000, height: 9000}
+const boardContentPadding = 2400
+const canvasSize = ref({...baseCanvasSize})
 const nodeImageBlobUrls = ref<Record<number, string>>({})
 const existingImageAttachments = ref<IAttachment[]>([])
 const existingImageAttachmentUrls = ref<Record<number, string>>({})
@@ -772,7 +822,7 @@ const viewportHeight = ref(640)
 const collaboratorPresence = ref<Record<string, CollaboratorPresence>>({})
 const pendingRealtimeReload = ref(false)
 const lastPresencePoint = ref<{x: number, y: number} | null>(null)
-const minZoom = .5
+const minZoom = .1
 const maxZoom = 2
 const zoomStep = .1
 const collaboratorColors = ['#5cc8ff', '#ff8c69', '#62e7c7', '#ffd166', '#f59ac2', '#b39cff']
@@ -853,11 +903,11 @@ function setTextEditorRef(nodeId: number, element: Element | null) {
 }
 
 function refreshCanvasSize() {
-	const width = canvasRef.value?.clientWidth ?? 1600
-	const height = canvasRef.value?.clientHeight ?? 1000
+	const width = canvasRef.value?.clientWidth ?? baseCanvasSize.width
+	const height = canvasRef.value?.clientHeight ?? baseCanvasSize.height
 	canvasSize.value = {
-		width: Math.max(width, getBoardContentBounds().width),
-		height: Math.max(height, getBoardContentBounds().height),
+		width: Math.max(width, baseCanvasSize.width, getBoardContentBounds().width),
+		height: Math.max(height, baseCanvasSize.height, getBoardContentBounds().height),
 	}
 }
 
@@ -871,15 +921,64 @@ function refreshViewportHeight() {
 }
 
 function getBoardContentBounds() {
-	let width = 1600
-	let height = 1000
+	let width = baseCanvasSize.width
+	let height = baseCanvasSize.height
 
 	selectedBoardNodes.value.forEach(node => {
-		width = Math.max(width, node.x + node.width + 240)
-		height = Math.max(height, node.y + node.height + 240)
+		width = Math.max(width, node.x + node.width + boardContentPadding)
+		height = Math.max(height, node.y + node.height + boardContentPadding)
 	})
 
 	return {width, height}
+}
+
+function getViewportScrollLimits() {
+	if (canvasRef.value === null) {
+		return {left: 0, top: 0}
+	}
+
+	return {
+		left: Math.max(0, canvasSize.value.width * currentZoom.value - canvasRef.value.clientWidth),
+		top: Math.max(0, canvasSize.value.height * currentZoom.value - canvasRef.value.clientHeight),
+	}
+}
+
+function syncStoredViewportFromCanvas() {
+	if (activeBoard.value === null || canvasRef.value === null) {
+		return
+	}
+
+	activeBoard.value.viewportX = canvasRef.value.scrollLeft
+	activeBoard.value.viewportY = canvasRef.value.scrollTop
+}
+
+function restoreCanvasViewport() {
+	if (activeBoard.value === null || canvasRef.value === null) {
+		return
+	}
+
+	const limits = getViewportScrollLimits()
+	canvasRef.value.scrollLeft = Math.min(Math.max(0, activeBoard.value.viewportX), limits.left)
+	canvasRef.value.scrollTop = Math.min(Math.max(0, activeBoard.value.viewportY), limits.top)
+}
+
+function shouldCenterInitialEmptyBoard() {
+	return activeBoard.value !== null &&
+		selectedBoardNodes.value.length === 0 &&
+		selectedBoardEdges.value.length === 0 &&
+		activeBoard.value.viewportX === 0 &&
+		activeBoard.value.viewportY === 0
+}
+
+function centerCanvasViewport() {
+	if (activeBoard.value === null || canvasRef.value === null) {
+		return
+	}
+
+	const limits = getViewportScrollLimits()
+	canvasRef.value.scrollLeft = Math.max(0, Math.round(limits.left / 2))
+	canvasRef.value.scrollTop = Math.max(0, Math.round(limits.top / 2))
+	syncStoredViewportFromCanvas()
 }
 
 async function loadBoard(boardId: number) {
@@ -905,10 +1004,18 @@ async function loadBoard(boardId: number) {
 	await nextTick()
 	refreshViewportHeight()
 	refreshCanvasSize()
+	if (shouldCenterInitialEmptyBoard()) {
+		centerCanvasViewport()
+		persistViewport()
+		return
+	}
+
+	restoreCanvasViewport()
 }
 
 async function loadBoards() {
 	boards.value = await visionBoardService.getAll({projectId: props.projectId})
+	await hydrateBoardTasks()
 
 	if (selectedBoardId.value !== null && !boards.value.some(board => board.id === selectedBoardId.value)) {
 		selectedBoardIdQuery.value = undefined
@@ -923,6 +1030,24 @@ async function loadBoards() {
 	if (boards.value.length === 0) {
 		showCreateForm.value = true
 	}
+}
+
+async function hydrateBoardTasks() {
+	const entries = await Promise.all(boards.value.map(async board => {
+		try {
+			const task = await taskService.get({id: board.taskId})
+			return [board.id, task] as const
+		} catch {
+			return [board.id, null] as const
+		}
+	}))
+
+	boardTasks.value = entries.reduce<Record<number, ITask>>((acc, [boardId, task]) => {
+		if (task !== null) {
+			acc[boardId] = task
+		}
+		return acc
+	}, {})
 }
 
 watch(
@@ -1246,6 +1371,10 @@ function onBoardSelect(event: Event) {
 	selectedBoardIdQuery.value = target.value === '' ? undefined : target.value
 }
 
+function selectBoard(boardId: number) {
+	selectedBoardIdQuery.value = String(boardId)
+}
+
 async function createBoard() {
 	if (selectedTask.value === null) {
 		return
@@ -1271,12 +1400,60 @@ async function createBoard() {
 	foundTasks.value = []
 }
 
-function getDefaultNodePosition() {
-	const offset = selectedBoardNodes.value.length * 24
-	return {x: 48 + offset, y: 48 + offset}
+async function deleteActiveBoard() {
+	if (activeBoard.value === null) {
+		return
+	}
+
+	const boardToDelete = activeBoard.value
+	if (!window.confirm(t('project.vision_board.deleteText', {board: boardToDelete.taskTitle || boardToDelete.title}))) {
+		return
+	}
+
+	await visionBoardService.delete({
+		id: boardToDelete.id,
+		projectId: props.projectId,
+	})
+
+	const remainingBoards = boards.value.filter(board => board.id !== boardToDelete.id)
+	boards.value = remainingBoards
+	delete boardTasks.value[boardToDelete.id]
+	showCreateForm.value = remainingBoards.length === 0
+
+	if (selectedBoardId.value === boardToDelete.id) {
+		selectedBoardIdQuery.value = remainingBoards[0] ? String(remainingBoards[0].id) : undefined
+	}
+
+	if (remainingBoards.length === 0) {
+		activeBoard.value = null
+	}
 }
 
-async function addNode(kind: VisionBoardNodeKind, position = getDefaultNodePosition()) {
+function getDefaultNodePosition() {
+	const offset = selectedBoardNodes.value.length * 24
+	const center = getViewportCenterPosition()
+	return {
+		x: Math.max(48, Math.round(center.x - 140 + offset)),
+		y: Math.max(48, Math.round(center.y - 110 + offset)),
+	}
+}
+
+function getViewportCenterPosition() {
+	if (canvasRef.value === null) {
+		return getDefaultNodePosition()
+	}
+
+	return {
+		x: (canvasRef.value.scrollLeft + canvasRef.value.clientWidth / 2) / currentZoom.value,
+		y: (canvasRef.value.scrollTop + canvasRef.value.clientHeight / 2) / currentZoom.value,
+	}
+}
+
+async function addNode(
+	kind: VisionBoardNodeKind,
+	position = getDefaultNodePosition(),
+	overrides: Partial<IVisionBoardNode> = {},
+): Promise<IVisionBoardNode | undefined> {
 	if (activeBoard.value === null) {
 		return
 	}
@@ -1293,6 +1470,7 @@ async function addNode(kind: VisionBoardNodeKind, position = getDefaultNodePosit
 		width: isTextNode ? 300 : 280,
 		height: isTextNode ? 160 : 220,
 		color: '',
+		...overrides,
 	}))
 
 	activeBoard.value.nodes = [...selectedBoardNodes.value, node]
@@ -1304,6 +1482,64 @@ async function addNode(kind: VisionBoardNodeKind, position = getDefaultNodePosit
 	} else {
 		selectedNodeId.value = node.id
 	}
+
+	return node
+}
+
+async function getImageNodeSize(file: File) {
+	const objectUrl = URL.createObjectURL(file)
+
+	try {
+		const dimensions = await new Promise<{width: number, height: number}>((resolve, reject) => {
+			const image = new Image()
+			image.onload = () => resolve({width: image.naturalWidth, height: image.naturalHeight})
+			image.onerror = () => reject(new Error('failed to load image dimensions'))
+			image.src = objectUrl
+		})
+
+		const maxWidth = 420
+		const maxHeight = 320
+		const minWidth = 180
+		const minHeight = 120
+		const scale = Math.min(maxWidth / dimensions.width, maxHeight / dimensions.height, 1)
+
+		return {
+			width: Math.max(minWidth, Math.round(dimensions.width * scale)),
+			height: Math.max(minHeight, Math.round(dimensions.height * scale)),
+		}
+	} catch {
+		return {
+			width: 320,
+			height: 220,
+		}
+	} finally {
+		URL.revokeObjectURL(objectUrl)
+	}
+}
+
+async function createImageNodeFromFile(file: File, position = getViewportCenterPosition()) {
+	if (activeBoard.value === null) {
+		return
+	}
+
+	const [attachment] = await uploadFile(activeBoard.value.taskId, file)
+	const size = await getImageNodeSize(file)
+	const node = await addNode('image', position, {
+		attachmentId: attachment.id,
+		title: file.name,
+		width: size.width,
+		height: size.height,
+	})
+	if (!node) {
+		return
+	}
+
+	nodeImageBlobUrls.value[node.id] = await attachmentService.getBlobUrl(new AttachmentModel({
+		id: attachment.id,
+		taskId: activeBoard.value.taskId,
+	}), PREVIEW_SIZE.LG) as string
+
+	return node
 }
 
 async function hydrateImageNodeUrls() {
@@ -1509,6 +1745,23 @@ function getResolvedTargetHandle(edge: IVisionBoardEdge): ConnectionHandle {
 	return edge.targetHandle || inferHandleBetweenNodes(edge.targetNodeId, edge.sourceNodeId, 'left')
 }
 
+function offsetPointForHandle(
+	point: {x: number, y: number},
+	handle: ConnectionHandle,
+	distance: number,
+) {
+	switch (handle) {
+		case 'top':
+			return {x: point.x, y: point.y + distance}
+		case 'bottom':
+			return {x: point.x, y: point.y - distance}
+		case 'left':
+			return {x: point.x + distance, y: point.y}
+		case 'right':
+			return {x: point.x - distance, y: point.y}
+	}
+}
+
 function getBezierPath(
 	source: {x: number, y: number},
 	target: {x: number, y: number},
@@ -1561,7 +1814,7 @@ function getEdgePath(edge: IVisionBoardEdge) {
 	const sourceHandle = getResolvedSourceHandle(edge)
 	const targetHandle = getResolvedTargetHandle(edge)
 	const source = getNodeAnchor(edge.sourceNodeId, sourceHandle)
-	const target = getNodeAnchor(edge.targetNodeId, targetHandle)
+	const target = offsetPointForHandle(getNodeAnchor(edge.targetNodeId, targetHandle), targetHandle, edgeTargetGap)
 	return getBezierPath(source, target, sourceHandle, targetHandle)
 }
 
@@ -1614,6 +1867,7 @@ function changeZoom(delta: number) {
 
 		canvasRef.value.scrollLeft = Math.max(0, centerX * nextZoom - canvasRef.value.clientWidth / 2)
 		canvasRef.value.scrollTop = Math.max(0, centerY * nextZoom - canvasRef.value.clientHeight / 2)
+		syncStoredViewportFromCanvas()
 	})
 
 	persistViewport()
@@ -1650,6 +1904,7 @@ function handleWindowKeydown(event: KeyboardEvent) {
 }
 
 function startEdgeConnection(nodeId: number, handle: ConnectionHandle, event: MouseEvent) {
+	canvasRef.value?.focus()
 	selectedNodeId.value = nodeId
 	selectedEdgeId.value = null
 	isEditingEdgeLabel.value = false
@@ -1906,7 +2161,11 @@ async function uploadNodeImage(node: IVisionBoardNode, event: Event) {
 	}
 
 	const [attachment] = await uploadFile(activeBoard.value.taskId, file)
+	const size = await getImageNodeSize(file)
 	node.attachmentId = attachment.id
+	node.title = file.name
+	node.width = size.width
+	node.height = size.height
 	nodeImageBlobUrls.value[node.id] = await attachmentService.getBlobUrl(new AttachmentModel({
 		id: attachment.id,
 		taskId: activeBoard.value.taskId,
@@ -2052,6 +2311,8 @@ async function finishTextEdit(node: IVisionBoardNode) {
 }
 
 function handleCanvasMouseDown(event: MouseEvent) {
+	canvasRef.value?.focus()
+
 	if (event.target instanceof HTMLElement && event.target.closest('.vision-node, .vision-node-toolbar, .vision-edge-toolbar, .vision-edge-label, .vision-board-stage__viewport-controls')) {
 		return
 	}
@@ -2072,6 +2333,11 @@ function handleCanvasMouseDown(event: MouseEvent) {
 	if (node) {
 		void finishTextEdit(node)
 	}
+}
+
+function handleCanvasScroll() {
+	syncStoredViewportFromCanvas()
+	persistViewport()
 }
 
 function handleGlobalMouseDown(event: MouseEvent) {
@@ -2096,7 +2362,39 @@ function onCanvasDoubleClick(event: MouseEvent) {
 	void addNode('text', toCanvasPoint(event))
 }
 
+function getClipboardImageFile(event: ClipboardEvent) {
+	const clipboardItems = event.clipboardData?.items
+	if (!clipboardItems) {
+		return null
+	}
+
+	for (const item of clipboardItems) {
+		if (item.kind === 'file' && item.type.startsWith('image/')) {
+			return item.getAsFile()
+		}
+	}
+
+	return null
+}
+
+async function handleCanvasPaste(event: ClipboardEvent) {
+	const target = event.target as HTMLElement | null
+	const isTypingTarget = target instanceof HTMLElement && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+	if (isTypingTarget || activeBoard.value === null) {
+		return
+	}
+
+	const file = getClipboardImageFile(event)
+	if (file === null) {
+		return
+	}
+
+	event.preventDefault()
+	await createImageNodeFromFile(file)
+}
+
 function selectEdge(edgeId: number) {
+	canvasRef.value?.focus()
 	selectedEdgeId.value = edgeId
 	selectedNodeId.value = null
 	isEditingEdgeLabel.value = false
@@ -2144,6 +2442,8 @@ function startDrag(node: IVisionBoardNode, event: MouseEvent) {
 		return
 	}
 
+	canvasRef.value?.focus()
+
 	selectedNodeId.value = node.id
 	selectedEdgeId.value = null
 	isEditingEdgeLabel.value = false
@@ -2166,6 +2466,7 @@ function startDrag(node: IVisionBoardNode, event: MouseEvent) {
 }
 
 function startResize(node: IVisionBoardNode, event: MouseEvent) {
+	canvasRef.value?.focus()
 	selectedNodeId.value = node.id
 	selectedEdgeId.value = null
 	isEditingEdgeLabel.value = false
@@ -2822,5 +3123,47 @@ function stopPointerTracking() {
 
 .vision-board-empty-state {
 	margin: 0;
+}
+
+.vision-board-empty-state--select {
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+}
+
+.vision-board-empty-state__cards {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+	gap: 1rem;
+}
+
+.vision-board-empty-state__card {
+	padding: 0;
+	border: 0;
+	background: transparent;
+	text-align: inherit;
+	cursor: pointer;
+}
+
+.vision-board-empty-state__card-fallback {
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+	min-block-size: 11rem;
+	padding: 1rem;
+	border: 1px solid var(--grey-200);
+	border-radius: $radius;
+	background: linear-gradient(180deg, rgba(42, 54, 74, .98), rgba(24, 31, 46, .98));
+	box-shadow: var(--shadow-sm);
+	color: var(--white);
+
+	h3,
+	p {
+		margin: 0;
+	}
+
+	p {
+		color: rgba(255, 255, 255, .72);
+	}
 }
 </style>
