@@ -298,6 +298,24 @@
 										<Icon icon="pen" />
 									</button>
 									<button
+										v-if="selectedNode.kind === 'card'"
+										class="vision-node-toolbar__button"
+										type="button"
+										@mousedown.stop
+										@click="toggleCardTaskEditor"
+									>
+										<Icon icon="pen" />
+									</button>
+									<button
+										v-if="selectedNode.kind === 'card'"
+										class="vision-node-toolbar__button"
+										type="button"
+										@mousedown.stop
+										@click="() => linkBoardTask(selectedNode)"
+									>
+										<Icon icon="link" />
+									</button>
+									<button
 										v-if="selectedNode.kind === 'image' || selectedNode.kind === 'video'"
 										class="vision-node-toolbar__button"
 										type="button"
@@ -358,6 +376,39 @@
 										@keydown.esc.prevent="cancelNodeTitleEdit"
 										@blur="saveNodeTitle"
 									>
+									<input
+										v-if="editingCardTaskNodeId === selectedNode?.id"
+										ref="cardTaskInputRef"
+										v-model="cardQueries[selectedNode.id]"
+										class="vision-node-toolbar__input"
+										type="text"
+										:placeholder="$t('project.vision_board.cardSearchPlaceholder')"
+										@mousedown.stop
+										@input="(event) => searchCardTasks(selectedNode.id, (event.target as HTMLInputElement).value)"
+									>
+									<div
+										v-if="editingCardTaskNodeId === selectedNode?.id && (cardSearchResults[selectedNode.id] ?? []).length > 0"
+										class="vision-node-toolbar__search-results"
+									>
+										<button
+											v-for="task in cardSearchResults[selectedNode.id]"
+											:key="task.id"
+											class="vision-node__search-result vision-node__interactive"
+											type="button"
+											@mousedown.stop
+											@click="() => selectCardTask(selectedNode, task)"
+										>
+											{{ task.title }}
+										</button>
+									</div>
+									<BaseButton
+										v-if="editingCardTaskNodeId === selectedNode?.id && (cardQueries[selectedNode.id] ?? '').trim() !== ''"
+										class="vision-node-toolbar__action"
+										@mousedown.stop
+										@click="() => createAndLinkCardTask(selectedNode)"
+									>
+										{{ $t('project.vision_board.createLinkedTask') }}
+									</BaseButton>
 									<div
 										v-if="selectedNode.kind === 'image' && showExistingImagePicker"
 										class="vision-node-toolbar__attachments"
@@ -474,45 +525,55 @@
 											v-else-if="node.kind === 'card'"
 											class="vision-node__card"
 										>
-											<p class="vision-node__content-preview">
-												{{ node.taskId ? `${$t('task.task')} #${node.taskId}` : $t('project.vision_board.cardUnlinked') }}
-											</p>
-											<BaseButton
-												class="vision-node__interactive"
+											<KanbanCard
+												v-if="getCardTask(node) !== null"
+												class="vision-node__interactive vision-node__card-preview"
+												:task="getCardTask(node)!"
+												:project-id="props.projectId"
+												open-behavior="route"
 												@mousedown.stop
-												@click="() => linkBoardTask(node)"
-											>
-												{{ $t('project.vision_board.linkBoardTask') }}
-											</BaseButton>
-											<input
-												v-model="cardQueries[node.id]"
-												class="vision-node__title vision-node__interactive"
-												type="text"
-												:placeholder="$t('project.vision_board.cardSearchPlaceholder')"
-												@input="(event) => searchCardTasks(node.id, (event.target as HTMLInputElement).value)"
-											>
-											<div
-												v-if="(cardSearchResults[node.id] ?? []).length > 0"
-												class="vision-node__search-results"
-											>
-												<button
-													v-for="task in cardSearchResults[node.id]"
-													:key="task.id"
-													class="vision-node__search-result vision-node__interactive"
-													type="button"
-													@click="() => selectCardTask(node, task)"
+											/>
+											<template v-else>
+												<p class="vision-node__content-preview">
+													{{ node.taskId ? `${$t('task.task')} #${node.taskId}` : $t('project.vision_board.cardUnlinked') }}
+												</p>
+												<BaseButton
+													class="vision-node__interactive"
+													@mousedown.stop
+													@click="() => linkBoardTask(node)"
 												>
-													{{ task.title }}
-												</button>
-											</div>
-											<BaseButton
-												v-if="(cardQueries[node.id] ?? '').trim() !== ''"
-												class="vision-node__interactive"
-												@mousedown.stop
-												@click="() => createAndLinkCardTask(node)"
-											>
-												{{ $t('project.vision_board.createLinkedTask') }}
-											</BaseButton>
+													{{ $t('project.vision_board.linkBoardTask') }}
+												</BaseButton>
+												<input
+													v-model="cardQueries[node.id]"
+													class="vision-node__title vision-node__interactive"
+													type="text"
+													:placeholder="$t('project.vision_board.cardSearchPlaceholder')"
+													@input="(event) => searchCardTasks(node.id, (event.target as HTMLInputElement).value)"
+												>
+												<div
+													v-if="(cardSearchResults[node.id] ?? []).length > 0"
+													class="vision-node__search-results"
+												>
+													<button
+														v-for="task in cardSearchResults[node.id]"
+														:key="task.id"
+														class="vision-node__search-result vision-node__interactive"
+														type="button"
+														@click="() => selectCardTask(node, task)"
+													>
+														{{ task.title }}
+													</button>
+												</div>
+												<BaseButton
+													v-if="(cardQueries[node.id] ?? '').trim() !== ''"
+													class="vision-node__interactive"
+													@mousedown.stop
+													@click="() => createAndLinkCardTask(node)"
+												>
+													{{ $t('project.vision_board.createLinkedTask') }}
+												</BaseButton>
+											</template>
 										</div>
 									</template>
 
@@ -596,6 +657,7 @@ import Message from '@/components/misc/Message.vue'
 import Multiselect from '@/components/input/Multiselect.vue'
 import Icon from '@/components/misc/Icon'
 import ProjectWrapper from '@/components/project/ProjectWrapper.vue'
+import KanbanCard from '@/components/tasks/partials/KanbanCard.vue'
 
 type ConnectionHandle = Exclude<IVisionBoardEdge['sourceHandle'], ''>
 
@@ -624,8 +686,10 @@ const edgeStrokeColor = '#8c5fd3'
 const edgeColors = ['#8c5fd3', '#62e7c7', '#f59ac2', '#74b8ff', '#ffd166', '#ff8c69', '#c4a7ff']
 const cardQueries = ref<Record<number, string>>({})
 const cardSearchResults = ref<Record<number, ITask[]>>({})
+const cardTasks = ref<Record<number, ITask>>({})
 const textDrafts = ref<Record<number, string>>({})
 const editingTextNodeId = ref<number | null>(null)
+const editingCardTaskNodeId = ref<number | null>(null)
 const selectedNodeId = ref<number | null>(null)
 const selectedEdgeId = ref<number | null>(null)
 const isEditingEdgeLabel = ref(false)
@@ -642,6 +706,7 @@ const viewportRef = ref<HTMLElement | null>(null)
 const canvasRef = ref<HTMLElement | null>(null)
 const edgeLabelInputRef = ref<HTMLInputElement | null>(null)
 const videoUrlInputRef = ref<HTMLInputElement | null>(null)
+const cardTaskInputRef = ref<HTMLInputElement | null>(null)
 const canvasSize = ref({width: 2400, height: 1600})
 const nodeImageBlobUrls = ref<Record<number, string>>({})
 const existingImageAttachments = ref<IAttachment[]>([])
@@ -754,9 +819,11 @@ async function loadBoard(boardId: number) {
 	showNodeColorPicker.value = false
 	showVideoUrlEditor.value = false
 	editingNodeTitleId.value = null
+	editingCardTaskNodeId.value = null
 	edgeLabelDraft.value = ''
 	nodeTitleDraft.value = ''
 	pendingEdge.value = null
+	await hydrateCardTasks()
 	await hydrateImageNodeUrls()
 	await nextTick()
 	refreshViewportHeight()
@@ -801,6 +868,9 @@ watch(selectedNode, async (node) => {
 	showExistingImagePicker.value = false
 	showVideoUrlEditor.value = false
 	editingNodeTitleId.value = null
+	if (node?.kind !== 'card') {
+		editingCardTaskNodeId.value = null
+	}
 	if (node?.kind !== 'image') {
 		existingImageAttachments.value = []
 		existingImageAttachmentUrls.value = {}
@@ -852,13 +922,20 @@ const persistViewport = useDebounceFn(async () => {
 	}))
 }, 150)
 
-async function findTasks(query: string) {
-	const params: TaskFilterParams = {
+function getTaskSearchParams(query: string): TaskFilterParams {
+	return {
 		...getDefaultTaskFilterParams(),
+		sort_by: ['id'],
+		order_by: ['desc'],
 		s: query,
 	}
+}
 
-	foundTasks.value = await taskCollectionService.getAll({projectId: props.projectId}, params)
+async function findTasks(query: string) {
+	foundTasks.value = await taskCollectionService.getAll(
+		{projectId: props.projectId},
+		getTaskSearchParams(query),
+	)
 }
 
 function onBoardSelect(event: Event) {
@@ -946,6 +1023,35 @@ async function hydrateImageNodeUrls() {
 	nodeImageBlobUrls.value = entries.reduce<Record<number, string>>((acc, [nodeId, blobUrl]) => {
 		if (blobUrl !== '') {
 			acc[nodeId] = blobUrl
+		}
+		return acc
+	}, {})
+}
+
+async function hydrateCardTasks() {
+	if (activeBoard.value === null) {
+		cardTasks.value = {}
+		return
+	}
+
+	const taskIds = [...new Set(
+		selectedBoardNodes.value
+			.filter(node => node.kind === 'card' && node.taskId > 0)
+			.map(node => node.taskId),
+	)]
+
+	const entries = await Promise.all(taskIds.map(async taskId => {
+		try {
+			const task = await taskService.get({id: taskId})
+			return [taskId, task] as const
+		} catch {
+			return [taskId, null] as const
+		}
+	}))
+
+	cardTasks.value = entries.reduce<Record<number, ITask>>((acc, [taskId, task]) => {
+		if (task !== null) {
+			acc[taskId] = task
 		}
 		return acc
 	}, {})
@@ -1040,6 +1146,10 @@ function getNodeToolbarStyle(node: IVisionBoardNode) {
 
 function getNodeById(nodeId: number) {
 	return selectedBoardNodes.value.find(node => node.id === nodeId)
+}
+
+function getCardTask(node: IVisionBoardNode) {
+	return cardTasks.value[node.taskId] ?? null
 }
 
 function isNodeSelected(nodeId: number) {
@@ -1526,7 +1636,11 @@ async function linkBoardTask(node: IVisionBoardNode) {
 
 	node.taskId = activeBoard.value.taskId
 	node.title = activeBoard.value.taskTitle
+	editingCardTaskNodeId.value = null
+	cardSearchResults.value[node.id] = []
+	cardQueries.value[node.id] = activeBoard.value.taskTitle
 	await updateNode(node)
+	await loadCardTask(node.taskId)
 }
 
 const searchCardTasks = useDebounceFn(async (nodeId: number, query: string) => {
@@ -1535,12 +1649,10 @@ const searchCardTasks = useDebounceFn(async (nodeId: number, query: string) => {
 		return
 	}
 
-	const params: TaskFilterParams = {
-		...getDefaultTaskFilterParams(),
-		s: query,
-	}
-
-	cardSearchResults.value[nodeId] = await taskCollectionService.getAll({projectId: props.projectId}, params)
+	cardSearchResults.value[nodeId] = await taskCollectionService.getAll(
+		{projectId: props.projectId},
+		getTaskSearchParams(query),
+	)
 }, 200)
 
 async function selectCardTask(node: IVisionBoardNode, task: ITask) {
@@ -1548,6 +1660,11 @@ async function selectCardTask(node: IVisionBoardNode, task: ITask) {
 	node.title = task.title
 	cardQueries.value[node.id] = task.title
 	cardSearchResults.value[node.id] = []
+	editingCardTaskNodeId.value = null
+	cardTasks.value = {
+		...cardTasks.value,
+		[task.id]: task,
+	}
 	await updateNode(node)
 }
 
@@ -1563,6 +1680,35 @@ async function createAndLinkCardTask(node: IVisionBoardNode) {
 	}))
 
 	await selectCardTask(node, created)
+}
+
+async function loadCardTask(taskId: number) {
+	if (taskId <= 0 || cardTasks.value[taskId]) {
+		return
+	}
+
+	cardTasks.value = {
+		...cardTasks.value,
+		[taskId]: await taskService.get({id: taskId}),
+	}
+}
+
+async function toggleCardTaskEditor() {
+	if (selectedNode.value?.kind !== 'card') {
+		return
+	}
+
+	if (editingCardTaskNodeId.value === selectedNode.value.id) {
+		editingCardTaskNodeId.value = null
+		cardSearchResults.value[selectedNode.value.id] = []
+		return
+	}
+
+	editingCardTaskNodeId.value = selectedNode.value.id
+	cardQueries.value[selectedNode.value.id] = getCardTask(selectedNode.value)?.title || selectedNode.value.title
+	await nextTick()
+	cardTaskInputRef.value?.focus()
+	cardTaskInputRef.value?.select()
 }
 
 async function startTextEdit(node: IVisionBoardNode) {
@@ -2059,6 +2205,19 @@ function stopPointerTracking() {
 	padding-block-start: .2rem;
 }
 
+.vision-node-toolbar__search-results {
+	display: flex;
+	flex-direction: column;
+	gap: .25rem;
+	inline-size: min(18rem, 100%);
+	max-block-size: 12rem;
+	overflow: auto;
+}
+
+.vision-node-toolbar__action {
+	justify-content: center;
+}
+
 .vision-node-toolbar__attachment {
 	inline-size: 3rem;
 	block-size: 3rem;
@@ -2176,7 +2335,9 @@ function stopPointerTracking() {
 .vision-node__card {
 	display: flex;
 	flex-direction: column;
+	block-size: 100%;
 	gap: .5rem;
+	min-block-size: 0;
 	position: relative;
 	overflow: visible;
 }
@@ -2227,6 +2388,12 @@ function stopPointerTracking() {
 	color: rgba(255, 255, 255, .72);
 }
 
+.vision-node__card-preview {
+	block-size: 100%;
+	min-block-size: 0;
+	overflow: auto;
+}
+
 .vision-node__search-results {
 	display: flex;
 	flex-direction: column;
@@ -2239,7 +2406,7 @@ function stopPointerTracking() {
 	border: 1px solid rgba(173, 193, 214, .2);
 	border-radius: 6px;
 	background: rgba(17, 22, 36, .3);
-	color: var(--white);
+	color: var(--gray);
 	cursor: pointer;
 	font: inherit;
 	padding: .375rem .5rem;

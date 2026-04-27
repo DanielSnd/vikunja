@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"code.vikunja.io/api/pkg/config"
@@ -1103,12 +1104,34 @@ func sanitizeWebhookEventData(eventName string, event map[string]interface{}) {
 	delete(taskMap, "description")
 }
 
+func shouldSuppressWebhookEvent(eventName string, event map[string]interface{}) bool {
+	if eventName != (&TaskUpdatedEvent{}).Name() {
+		return false
+	}
+
+	changeSummary := getMapStringValue(event, "change_summary")
+	if changeSummary == "" {
+		return false
+	}
+
+	if changeSummary == "Task position updated" {
+		return true
+	}
+
+	return strings.HasPrefix(changeSummary, "Time tracking ")
+}
+
 // Handle is executed when the event WebhookListener listens on is fired
 func (wl *WebhookListener) Handle(msg *message.Message) (err error) {
 	var event map[string]interface{}
 	err = json.Unmarshal(msg.Payload, &event)
 	if err != nil {
 		return err
+	}
+
+	if shouldSuppressWebhookEvent(wl.EventName, event) {
+		log.Debugf("Skipping webhook delivery for suppressed %s event", wl.EventName)
+		return nil
 	}
 
 	s := db.NewSession()
