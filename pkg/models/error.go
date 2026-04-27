@@ -1896,6 +1896,125 @@ func (err ErrTaskAlreadyExistsInBucket) HTTPError() web.HTTPError {
 	}
 }
 
+// ErrVisionBoardDoesNotExist represents an error where a vision board does not exist.
+type ErrVisionBoardDoesNotExist struct {
+	VisionBoardID int64
+}
+
+func IsErrVisionBoardDoesNotExist(err error) bool {
+	_, ok := err.(ErrVisionBoardDoesNotExist)
+	return ok
+}
+
+func (err ErrVisionBoardDoesNotExist) Error() string {
+	return fmt.Sprintf("Vision board does not exist [VisionBoardID: %d]", err.VisionBoardID)
+}
+
+const ErrCodeVisionBoardDoesNotExist = 10007
+
+func (err ErrVisionBoardDoesNotExist) HTTPError() web.HTTPError {
+	return web.HTTPError{
+		HTTPCode: http.StatusNotFound,
+		Code:     ErrCodeVisionBoardDoesNotExist,
+		Message:  "This vision board does not exist.",
+	}
+}
+
+// ErrVisionBoardAlreadyExistsForTask represents an error where a task already has a vision board.
+type ErrVisionBoardAlreadyExistsForTask struct {
+	TaskID int64
+}
+
+func IsErrVisionBoardAlreadyExistsForTask(err error) bool {
+	_, ok := err.(ErrVisionBoardAlreadyExistsForTask)
+	return ok
+}
+
+func (err ErrVisionBoardAlreadyExistsForTask) Error() string {
+	return fmt.Sprintf("Vision board already exists for task [TaskID: %d]", err.TaskID)
+}
+
+const ErrCodeVisionBoardAlreadyExistsForTask = 10008
+
+func (err ErrVisionBoardAlreadyExistsForTask) HTTPError() web.HTTPError {
+	return web.HTTPError{
+		HTTPCode: http.StatusConflict,
+		Code:     ErrCodeVisionBoardAlreadyExistsForTask,
+		Message:  "This task already has a vision board.",
+	}
+}
+
+// ErrVisionBoardTaskDoesNotBelongToProject represents an error where the associated task belongs to another project.
+type ErrVisionBoardTaskDoesNotBelongToProject struct {
+	TaskID    int64
+	ProjectID int64
+}
+
+func IsErrVisionBoardTaskDoesNotBelongToProject(err error) bool {
+	_, ok := err.(ErrVisionBoardTaskDoesNotBelongToProject)
+	return ok
+}
+
+func (err ErrVisionBoardTaskDoesNotBelongToProject) Error() string {
+	return fmt.Sprintf("Task does not belong to project for vision board [TaskID: %d, ProjectID: %d]", err.TaskID, err.ProjectID)
+}
+
+const ErrCodeVisionBoardTaskDoesNotBelongToProject = 10009
+
+func (err ErrVisionBoardTaskDoesNotBelongToProject) HTTPError() web.HTTPError {
+	return web.HTTPError{
+		HTTPCode: http.StatusBadRequest,
+		Code:     ErrCodeVisionBoardTaskDoesNotBelongToProject,
+		Message:  "This task does not belong to that project.",
+	}
+}
+
+type ErrVisionBoardNodeDoesNotExist struct {
+	VisionBoardNodeID int64
+}
+
+func IsErrVisionBoardNodeDoesNotExist(err error) bool {
+	_, ok := err.(ErrVisionBoardNodeDoesNotExist)
+	return ok
+}
+
+func (err ErrVisionBoardNodeDoesNotExist) Error() string {
+	return fmt.Sprintf("Vision board node does not exist [VisionBoardNodeID: %d]", err.VisionBoardNodeID)
+}
+
+const ErrCodeVisionBoardNodeDoesNotExist = 10010
+
+func (err ErrVisionBoardNodeDoesNotExist) HTTPError() web.HTTPError {
+	return web.HTTPError{
+		HTTPCode: http.StatusNotFound,
+		Code:     ErrCodeVisionBoardNodeDoesNotExist,
+		Message:  "This vision board node does not exist.",
+	}
+}
+
+type ErrVisionBoardEdgeDoesNotExist struct {
+	VisionBoardEdgeID int64
+}
+
+func IsErrVisionBoardEdgeDoesNotExist(err error) bool {
+	_, ok := err.(ErrVisionBoardEdgeDoesNotExist)
+	return ok
+}
+
+func (err ErrVisionBoardEdgeDoesNotExist) Error() string {
+	return fmt.Sprintf("Vision board edge does not exist [VisionBoardEdgeID: %d]", err.VisionBoardEdgeID)
+}
+
+const ErrCodeVisionBoardEdgeDoesNotExist = 10011
+
+func (err ErrVisionBoardEdgeDoesNotExist) HTTPError() web.HTTPError {
+	return web.HTTPError{
+		HTTPCode: http.StatusNotFound,
+		Code:     ErrCodeVisionBoardEdgeDoesNotExist,
+		Message:  "This vision board edge does not exist.",
+	}
+}
+
 // =============
 // Saved Filters
 // =============

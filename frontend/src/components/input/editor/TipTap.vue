@@ -258,64 +258,113 @@ const loadedAttachments = ref<{
 	[key: CacheKey]: string
 }>({})
 
+function getAttachmentUrl(attributes: Record<string, unknown>): string | null {
+	const imageUrl = attributes['data-src'] ?? attributes.src
+	if (typeof imageUrl !== 'string' || !imageUrl.startsWith(window.API_URL)) {
+		return null
+	}
+
+	return imageUrl
+}
+
+function getAttachmentCacheKey(imageUrl: string): CacheKey | null {
+	const parts = imageUrl.slice(window.API_URL.length + 1).split('/')
+	const taskId = Number(parts[1])
+	const attachmentId = Number(parts[3])
+
+	if (Number.isNaN(taskId) || Number.isNaN(attachmentId)) {
+		return null
+	}
+
+	return `${taskId}-${attachmentId}`
+}
+
+async function hydrateAttachmentImage(imageUrl: string, img: HTMLImageElement) {
+	const cacheKey = getAttachmentCacheKey(imageUrl)
+	if (!cacheKey) {
+		return
+	}
+
+	if (typeof loadedAttachments.value[cacheKey] === 'undefined') {
+		const [taskId, attachmentId] = cacheKey.split('-').map(Number)
+
+		const attachment = new AttachmentModel({
+			taskId,
+			id: attachmentId,
+		})
+
+		const attachmentService = new AttachmentService()
+		loadedAttachments.value[cacheKey] = await attachmentService.getBlobUrl(attachment) as string
+	}
+
+	img.src = loadedAttachments.value[cacheKey] as string
+}
+
 const CustomImage = Image.extend({
 	addAttributes() {
 		return {
+			...this.parent?.(),
 			src: {
 				default: null,
-			},
-			alt: {
-				default: null,
-			},
-			title: {
-				default: null,
-			},
-			id: {
-				default: null,
+				parseHTML: (element: HTMLElement) => element.getAttribute('data-src') || element.getAttribute('src'),
 			},
 			'data-src': {
 				default: null,
+				parseHTML: (element: HTMLElement) => element.getAttribute('data-src'),
 			},
 		}
 	},
 	renderHTML({HTMLAttributes}) {
-		if (HTMLAttributes.src?.startsWith(window.API_URL) || HTMLAttributes['data-src']?.startsWith(window.API_URL)) {
-			const imageUrl = HTMLAttributes['data-src'] ?? HTMLAttributes.src
+		const imageUrl = getAttachmentUrl(HTMLAttributes)
+		if (imageUrl) {
+			const cacheKey = getAttachmentCacheKey(imageUrl)
+			if (!cacheKey) {
+				return ['img', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes)]
+			}
 
-			// The url is something like /tasks/<id>/attachments/<id>
-			const parts = imageUrl.slice(window.API_URL.length + 1).split('/')
-			const taskId = Number(parts[1])
-			const attachmentId = Number(parts[3])
-			const cacheKey: CacheKey = `${taskId}-${attachmentId}`
 			const id = 'tiptap-image-' + cacheKey
 
 			nextTick(async () => {
-
 				const img = document.getElementById(id) as HTMLImageElement | null
 
 				if (!img || !(img instanceof HTMLImageElement)) return
 
-				if (typeof loadedAttachments.value[cacheKey] === 'undefined') {
-
-					const attachment = new AttachmentModel({taskId: taskId, id: attachmentId})
-
-					const attachmentService = new AttachmentService()
-					loadedAttachments.value[cacheKey] = await attachmentService.getBlobUrl(attachment) as string
-				}
-
-				img.src = loadedAttachments.value[cacheKey] as string
+				await hydrateAttachmentImage(imageUrl, img)
 			})
 
 			return ['img', mergeAttributes(this.options.HTMLAttributes, {
 				'data-src': imageUrl,
 				src: '#',
-				alt: HTMLAttributes.alt,
-				title: HTMLAttributes.title,
 				id,
+				...HTMLAttributes,
 			})]
 		}
 
 		return ['img', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes)]
+	},
+	addNodeView() {
+		const parentNodeView = this.parent?.()
+		if (!parentNodeView) {
+			return null
+		}
+
+		return (props) => {
+			const nodeView = parentNodeView(props)
+			const dom = nodeView?.dom
+			const imageUrl = getAttachmentUrl(props.node.attrs)
+
+			if (dom instanceof HTMLElement && imageUrl) {
+				const img = dom instanceof HTMLImageElement
+					? dom
+					: dom.querySelector('img')
+
+				if (img instanceof HTMLImageElement) {
+					void hydrateAttachmentImage(imageUrl, img)
+				}
+			}
+
+			return nodeView
+		}
 	},
 })
 
@@ -468,7 +517,11 @@ const extensions : Extensions = [
 	// Custom TableCell with backgroundColor attribute
 	CustomTableCell,
 
-	CustomImage,
+	CustomImage.configure({
+		resize: {
+			enabled: true,
+		},
+	}),
 
 	TaskList,
 	TaskItemWithId.configure({
@@ -702,35 +755,40 @@ onBeforeUnmount(() => {
 
 const uploadInputRef = ref<HTMLInputElement | null>(null)
 
+function insertImage(url: string) {
+	setEditIfApplicable()
+
+	if (editor.value?.isEmpty) {
+		editor.value
+			.chain()
+			.focus()
+			.insertContent(UPLOAD_PLACEHOLDER_ELEMENT)
+			.run()
+	}
+
+	editor.value
+		?.chain()
+		.focus()
+		.setImage({src: url})
+		.run()
+
+	const html = editor.value?.getHTML().replace(UPLOAD_PLACEHOLDER_ELEMENT, '') ?? ''
+
+	editor.value?.commands.setContent(html, {
+		...defaultSetContentOptions,
+		emitUpdate: false,
+	})
+
+	bubbleNow()
+}
+
 function uploadAndInsertFiles(files: File[] | FileList) {
 	if (typeof props.uploadCallback === 'undefined') {
 		throw new Error('Can\'t add files here')
 	}
 
 	props.uploadCallback(files).then(urls => {
-		urls?.forEach(url => {
-			if (editor.value?.isEmpty) {
-				editor.value
-					?.chain()
-					.focus()
-					.insertContent(UPLOAD_PLACEHOLDER_ELEMENT)
-					.run()
-			}
-			editor.value
-				?.chain()
-				.focus()
-				.setImage({src: url})
-				.run()
-		})
-		
-		const html = editor.value?.getHTML().replace(UPLOAD_PLACEHOLDER_ELEMENT, '') ?? ''
-
-		editor.value?.commands.setContent(html, {
-			...defaultSetContentOptions,
-			emitUpdate: false,
-		})
-
-		bubbleNow()
+		urls?.forEach(insertImage)
 	})
 }
 
@@ -803,6 +861,11 @@ onBeforeUnmount(() => {
 	if (props.editShortcut !== '') {
 		document.removeEventListener('keydown', setFocusToEditor)
 	}
+})
+
+defineExpose({
+	insertImage,
+	setEdit,
 })
 
 function setModeAndValue(value: string) {

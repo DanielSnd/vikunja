@@ -80,6 +80,14 @@
 								<Icon icon="download" />
 							</BaseButton>
 							<BaseButton
+								v-if="editEnabled && canPreviewImage(a) && showInsertIntoDescription"
+								v-tooltip="$t('task.attachment.addToDescription')"
+								class="attachment-info-meta-button"
+								@click.prevent.stop="emit('insertImage', a)"
+							>
+								<Icon icon="image" />
+							</BaseButton>
+							<BaseButton
 								v-tooltip="$t('task.attachment.copyUrlTooltip')"
 								class="attachment-info-meta-button"
 								@click.stop="copyUrl(a)"
@@ -209,13 +217,16 @@ import FilePreview from '@/components/tasks/partials/FilePreview.vue'
 const props = withDefaults(defineProps<{
 	task: ITask,
 	editEnabled?: boolean,
+	showInsertIntoDescription?: boolean,
 }>(), {
 	editEnabled: true,
+	showInsertIntoDescription: false,
 })
 
 const emit = defineEmits<{
 	'taskChanged': [ITask],
 	'update:attachments': [IAttachment[]],
+	'insertImage': [IAttachment],
 }>()
 
 const EDITOR_SELECTOR = '.tiptap, .tiptap__editor, [contenteditable]'

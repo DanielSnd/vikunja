@@ -19,6 +19,7 @@
 			</CustomTransition>
 		</div>
 		<Editor
+			ref="editorRef"
 			v-model="content"
 			class="tiptap__task-description"
 			:is-edit-enabled="canWrite"
@@ -63,6 +64,7 @@ const emit = defineEmits<{
 }>()
 
 const content = ref('')
+const editorRef = ref<InstanceType<typeof Editor> | null>(null)
 const hasChanges = ref(false)
 watch(() => [props.modelValue.id, props.modelValue.title, props.modelValue.description], () => {
 	if (hasChanges.value) {
@@ -175,6 +177,14 @@ async function uploadCallback(files: File[] | FileList): Promise<string[]> {
 
 	return await Promise.all(uploadPromises)
 }
+
+function insertImage(url: string) {
+	editorRef.value?.insertImage(url)
+}
+
+defineExpose({
+	insertImage,
+})
 </script>
 
 <style lang="scss" scoped>

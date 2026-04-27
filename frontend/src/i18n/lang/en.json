@@ -552,6 +552,34 @@
       "cardEffortShortcutHint": "Press 0-9 to change effort",
       "cardOwnerShortcutHint": "Press O to change owner"
     },
+    "vision_board": {
+      "title": "Vision Board",
+      "selectLabel": "Board",
+      "selectPlaceholder": "Select a board",
+      "create": "Create board",
+      "createTaskLabel": "Task",
+      "createTaskPlaceholder": "Search a task…",
+      "noBoards": "No vision boards have been created for this project yet.",
+      "emptySelection": "Select an existing vision board or create a new one for a task.",
+      "editorPlaceholder": "Use the toolbar to add nodes, or double-click the canvas to add a text node.",
+      "nodePlaceholder": "Add content",
+      "connect": "Connect",
+      "connectingHint": "Select another node to connect it.",
+      "uploadImage": "Upload image",
+      "videoUrlPlaceholder": "Paste a YouTube URL",
+      "cardUnlinked": "No task linked yet.",
+      "linkBoardTask": "Link board task",
+      "cardSearchPlaceholder": "Search cards in this project…",
+      "createLinkedTask": "Create and link card",
+      "edgeLabelPlaceholder": "Relationship",
+      "nodes": {
+        "text": "Text",
+        "card": "Card",
+        "container": "Container",
+        "image": "Image",
+        "video": "Video"
+      }
+    },
     "pseudo": {
       "favorites": {
         "title": "Favorites"
@@ -1098,7 +1126,8 @@
           "timeTracking": "Time Tracking",
           "delete": "Delete",
           "favorite": "Add to Favorites",
-          "unfavorite": "Remove from Favorites"
+          "unfavorite": "Remove from Favorites",
+          "visionBoard": "Vision Board"
         }
     },
     "attributes": {
@@ -1152,6 +1181,8 @@
       "delete": "Delete attachment",
       "deleteTooltip": "Delete this attachment",
       "deleteText1": "Are you sure you want to delete the attachment {filename}?",
+      "addToDescription": "Add this image to the description",
+      "copyUrl": "Copy URL",
       "copyUrlTooltip": "Copy the url of this attachment for usage in text",
       "setAsCover": "Make cover",
       "unsetAsCover": "Remove cover",

@@ -147,6 +147,7 @@
 						box-shadow: var(--shadow-sm);"
 					>
 						<Description
+							ref="descriptionRef"
 							:model-value="task"
 							:can-write="canWrite"
 							:attachment-upload="attachmentUpload"
@@ -507,8 +508,10 @@
 								v-if="showAttachments"
 								:ref="e => { setFieldRef('attachments', e); attachmentsRef = e as any }"
 								:edit-enabled="canWrite"
+								:show-insert-into-description="canWrite"
 								:task="task"
 								@taskChanged="({coverImageAttachmentId}) => task.coverImageAttachmentId = coverImageAttachmentId"
+								@insertImage="insertAttachmentIntoDescription"
 								@update:attachments="onAttachmentsUpdated"
 							/>
 						</div>
@@ -803,6 +806,15 @@
 						>
 							{{ $t('task.detail.actions.duplicate') }}
 						</XButton>
+						<XButton
+							v-tooltip="$t('task.detail.actions.visionBoard')"
+							variant="secondary"
+							:aria-label="$t('task.detail.actions.visionBoard')"
+							icon="object-group"
+							@click="openVisionBoard"
+						>
+							{{ $t('task.detail.actions.visionBoard') }}
+						</XButton>
 
 						<span class="action-heading">{{ $t('task.detail.dateAndTime') }}</span>
 
@@ -950,7 +962,7 @@ import AssigneeList from '@/components/tasks/partials/AssigneeList.vue'
 import BucketSelect from '@/components/tasks/partials/BucketSelect.vue'
 import Reactions from '@/components/input/Reactions.vue'
 
-import {uploadFile} from '@/helpers/attachments'
+import {generateAttachmentUrl, uploadFile} from '@/helpers/attachments'
 import {getProjectTitle} from '@/helpers/getProjectTitle'
 import {isAppleDevice} from '@/helpers/isAppleDevice'
 import {scrollIntoView} from '@/helpers/scrollIntoView'
@@ -972,6 +984,9 @@ import {useWebSocket} from '@/composables/useWebSocket'
 
 import {success} from '@/message'
 import type {Action as MessageAction} from '@/message'
+import ProjectService from '@/services/project'
+import VisionBoardService from '@/services/visionBoard'
+import VisionBoardModel from '@/models/visionBoard'
 
 const props = defineProps<{
 	taskId: ITask['id'],
@@ -1099,6 +1114,8 @@ const canWrite = computed(() => (
 	task.value.maxPermission > PERMISSIONS.READ
 ))
 
+const descriptionRef = ref<InstanceType<typeof Description> | null>(null)
+
 const color = computed(() => {
 	const color = task.value.getHexColor
 		? task.value.getHexColor()
@@ -1128,6 +1145,10 @@ function onAttachmentsUpdated(attachments: IAttachment[]) {
 		...task.value,
 		attachments,
 	})
+}
+
+function insertAttachmentIntoDescription(attachment: IAttachment) {
+	descriptionRef.value?.insertImage(generateAttachmentUrl(task.value.id, attachment.id))
 }
 
 const heading = ref<HTMLElement | null>(null)
@@ -1222,6 +1243,7 @@ onMounted(async () => {
 })
 
 const taskService = shallowReactive(new TaskService())
+const visionBoardService = shallowReactive(new VisionBoardService())
 
 const currentTimer = computed(() => taskTimerStore.currentTimer)
 const isTaskTimerRunning = computed(() => currentTimer.value?.status === 'running' && currentTimer.value.taskId === task.value.id)
@@ -1618,6 +1640,44 @@ async function duplicateCurrentTask() {
 			params: {id: duplicatedTask.id},
 		})
 	}
+}
+
+async function openVisionBoard() {
+	const boards = await visionBoardService.getAll({
+		projectId: task.value.projectId,
+	})
+
+	let board = boards.find(existingBoard => existingBoard.taskId === task.value.id) ?? null
+	if (board === null) {
+		board = await visionBoardService.create(new VisionBoardModel({
+			projectId: task.value.projectId,
+			taskId: task.value.id,
+			title: task.value.title,
+		}))
+	}
+
+	let projectWithViews = projectStore.projects[task.value.projectId]
+	if (!projectWithViews) {
+		const projectService = new ProjectService()
+		projectWithViews = await projectService.get({id: task.value.projectId})
+		projectStore.setProject(projectWithViews)
+	}
+
+	const visionBoardView = projectWithViews.views.find(v => v.viewKind === 'vision_board')
+	if (!visionBoardView) {
+		return
+	}
+
+	await router.push({
+		name: 'project.view',
+		params: {
+			projectId: task.value.projectId,
+			viewId: visionBoardView.id,
+		},
+		query: {
+			visionBoardId: String(board.id),
+		},
+	})
 }
 
 async function setPriority(priority: Priority) {

@@ -818,6 +818,39 @@ func registerAPIRoutes(a *echo.Group) {
 	a.DELETE("/projects/:project/views/:view", projectViewProvider.DeleteWeb)
 	a.POST("/projects/:project/views/:view", projectViewProvider.UpdateWeb)
 
+	visionBoardProvider := &handler.WebHandler{
+		EmptyStruct: func() handler.CObject {
+			return &models.VisionBoard{}
+		},
+	}
+	a.GET("/projects/:project/vision-boards", visionBoardProvider.ReadAllWeb)
+	a.GET("/projects/:project/vision-boards/:board", visionBoardProvider.ReadOneWeb)
+	a.PUT("/projects/:project/vision-boards", visionBoardProvider.CreateWeb)
+	a.DELETE("/projects/:project/vision-boards/:board", visionBoardProvider.DeleteWeb)
+	a.POST("/projects/:project/vision-boards/:board", visionBoardProvider.UpdateWeb)
+
+	visionBoardNodeProvider := &handler.WebHandler{
+		EmptyStruct: func() handler.CObject {
+			return &models.VisionBoardNode{}
+		},
+	}
+	a.GET("/projects/:project/vision-boards/:board/nodes", visionBoardNodeProvider.ReadAllWeb)
+	a.GET("/projects/:project/vision-boards/:board/nodes/:node", visionBoardNodeProvider.ReadOneWeb)
+	a.PUT("/projects/:project/vision-boards/:board/nodes", visionBoardNodeProvider.CreateWeb)
+	a.DELETE("/projects/:project/vision-boards/:board/nodes/:node", visionBoardNodeProvider.DeleteWeb)
+	a.POST("/projects/:project/vision-boards/:board/nodes/:node", visionBoardNodeProvider.UpdateWeb)
+
+	visionBoardEdgeProvider := &handler.WebHandler{
+		EmptyStruct: func() handler.CObject {
+			return &models.VisionBoardEdge{}
+		},
+	}
+	a.GET("/projects/:project/vision-boards/:board/edges", visionBoardEdgeProvider.ReadAllWeb)
+	a.GET("/projects/:project/vision-boards/:board/edges/:edge", visionBoardEdgeProvider.ReadOneWeb)
+	a.PUT("/projects/:project/vision-boards/:board/edges", visionBoardEdgeProvider.CreateWeb)
+	a.DELETE("/projects/:project/vision-boards/:board/edges/:edge", visionBoardEdgeProvider.DeleteWeb)
+	a.POST("/projects/:project/vision-boards/:board/edges/:edge", visionBoardEdgeProvider.UpdateWeb)
+
 	// Kanban Task Bucket Relation
 	taskBucketProvider := &handler.WebHandler{
 		EmptyStruct: func() handler.CObject {
