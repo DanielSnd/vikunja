@@ -113,6 +113,8 @@
 						:class="{'vision-board-stage__canvas--connecting': pendingEdge !== null}"
 						@dblclick="onCanvasDoubleClick"
 						@mousedown="handleCanvasMouseDown"
+						@mousemove="handleCanvasPresenceMove"
+						@mouseleave="handleCanvasPresenceLeave"
 					>
 						<div
 							class="vision-board-stage__surface-frame"
@@ -250,6 +252,25 @@
 								>
 									{{ edge.label }}
 								</button>
+
+								<div
+									v-for="presence in activeCollaborators"
+									:key="`${presence.sender.id}-${presence.sessionId}`"
+									class="vision-board-cursor"
+									:style="getCollaboratorCursorStyle(presence)"
+								>
+									<Icon
+										class="vision-board-cursor__pointer"
+										icon="location-arrow"
+										:style="{color: getCollaboratorColor(presence)}"
+									/>
+									<div
+										class="vision-board-cursor__label"
+										:style="{backgroundColor: getCollaboratorColor(presence)}"
+									>
+										{{ getCollaboratorDisplayName(presence.sender) }} {{ getCollaboratorActivityLabel(presence.activity) }}
+									</div>
+								</div>
 
 								<div
 									v-if="selectedNode !== null && selectedEdge === null"
@@ -629,7 +650,7 @@
 <script setup lang="ts">
 import {computed, nextTick, onMounted, onUnmounted, ref, shallowReactive, watch} from 'vue'
 import {useRouteQuery} from '@vueuse/router'
-import {useDebounceFn, useResizeObserver} from '@vueuse/core'
+import {useDebounceFn, useResizeObserver, useThrottleFn} from '@vueuse/core'
 
 import type {IAttachment} from '@/modelTypes/IAttachment'
 import type {ITask} from '@/modelTypes/ITask'
@@ -650,6 +671,7 @@ import VisionBoardNodeService from '@/services/visionBoardNode'
 import TaskCollectionService, {getDefaultTaskFilterParams, type TaskFilterParams} from '@/services/taskCollection'
 import TaskService from '@/services/task'
 import {uploadFile} from '@/helpers/attachments'
+import {useWebSocket} from '@/composables/useWebSocket'
 
 import BaseButton from '@/components/base/BaseButton.vue'
 import FormField from '@/components/input/FormField.vue'
@@ -660,6 +682,40 @@ import ProjectWrapper from '@/components/project/ProjectWrapper.vue'
 import KanbanCard from '@/components/tasks/partials/KanbanCard.vue'
 
 type ConnectionHandle = Exclude<IVisionBoardEdge['sourceHandle'], ''>
+type CollaboratorActivity = 'idle' | 'dragging' | 'resizing' | 'connecting'
+
+interface RealtimeSender {
+	id: number
+	name: string
+	username: string
+}
+
+interface RealtimeEnvelope<T> {
+	sender?: RealtimeSender
+	data?: T
+}
+
+interface BoardChangedPayload {
+	sessionId: string
+	reason?: string
+}
+
+interface BoardPresencePayload {
+	sessionId: string
+	x?: number
+	y?: number
+	left?: boolean
+	activity: CollaboratorActivity
+}
+
+interface CollaboratorPresence {
+	sessionId: string
+	x: number
+	y: number
+	activity: CollaboratorActivity
+	sender: RealtimeSender
+	updatedAt: number
+}
 
 const props = defineProps<{
 	projectId: number,
@@ -673,6 +729,7 @@ const visionBoardNodeService = shallowReactive(new VisionBoardNodeService())
 const visionBoardEdgeService = shallowReactive(new VisionBoardEdgeService())
 const taskCollectionService = shallowReactive(new TaskCollectionService())
 const taskService = shallowReactive(new TaskService())
+const {connected: wsConnected, publish, subscribe} = useWebSocket()
 
 const boards = ref<IVisionBoard[]>([])
 const activeBoard = ref<IVisionBoard | null>(null)
@@ -712,14 +769,29 @@ const nodeImageBlobUrls = ref<Record<number, string>>({})
 const existingImageAttachments = ref<IAttachment[]>([])
 const existingImageAttachmentUrls = ref<Record<number, string>>({})
 const viewportHeight = ref(640)
+const collaboratorPresence = ref<Record<string, CollaboratorPresence>>({})
+const pendingRealtimeReload = ref(false)
+const lastPresencePoint = ref<{x: number, y: number} | null>(null)
 const minZoom = .5
 const maxZoom = 2
 const zoomStep = .1
+const collaboratorColors = ['#5cc8ff', '#ff8c69', '#62e7c7', '#ffd166', '#f59ac2', '#b39cff']
+const collaboratorPresenceTimeout = 10000
+const localRealtimeSessionId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+	? crypto.randomUUID()
+	: `${Date.now()}-${Math.random().toString(36).slice(2)}`
+const draggingNodeId = ref<number | null>(null)
+const dragOffset = ref({x: 0, y: 0})
+const resizingNodeId = ref<number | null>(null)
+const resizeOrigin = ref({x: 0, y: 0, width: 0, height: 0})
 
 const selectedBoardIdQuery = useRouteQuery('visionBoardId')
 
 const nodeRefs = new Map<number, HTMLElement>()
 const textEditorRefs = new Map<number, HTMLTextAreaElement>()
+let unsubscribeBoardChangedWs: (() => void) | null = null
+let unsubscribeBoardPresenceWs: (() => void) | null = null
+let collaboratorPresenceCleanupTimer: ReturnType<typeof window.setInterval> | null = null
 
 const pendingEdge = ref<null | {
 	sourceNodeId: number,
@@ -743,6 +815,10 @@ const selectedBoardEdges = computed(() => activeBoard.value?.edges ?? [])
 const currentZoom = computed(() => activeBoard.value?.viewportZoom || 1)
 const zoomPercentage = computed(() => Math.round(currentZoom.value * 100))
 const labeledEdges = computed(() => selectedBoardEdges.value.filter(edge => edge.label.trim() !== ''))
+const boardRealtimeEventBase = computed(() => activeBoard.value === null ? '' : `project.${props.projectId}.board.${activeBoard.value.id}`)
+const boardChangedEvent = computed(() => boardRealtimeEventBase.value === '' ? '' : `${boardRealtimeEventBase.value}.changed`)
+const boardPresenceEvent = computed(() => boardRealtimeEventBase.value === '' ? '' : `${boardRealtimeEventBase.value}.presence`)
+const activeCollaborators = computed(() => Object.values(collaboratorPresence.value))
 const selectedNode = computed(() => {
 	if (selectedNodeId.value === null) {
 		return null
@@ -811,6 +887,7 @@ async function loadBoard(boardId: number) {
 		projectId: props.projectId,
 		id: boardId,
 	})
+	collaboratorPresence.value = {}
 	editingTextNodeId.value = null
 	selectedNodeId.value = null
 	selectedEdgeId.value = null
@@ -885,9 +962,87 @@ watch(selectedNode, async (node) => {
 	}
 })
 
+watch(boardChangedEvent, (eventName) => {
+	unsubscribeBoardChangedWs?.()
+	unsubscribeBoardChangedWs = null
+
+	if (eventName === '') {
+		return
+	}
+
+	unsubscribeBoardChangedWs = subscribe(eventName, (msg) => {
+		if (msg.event !== eventName) {
+			return
+		}
+
+		const payload = msg.data as RealtimeEnvelope<BoardChangedPayload> | undefined
+		if (payload?.data?.sessionId === localRealtimeSessionId) {
+			return
+		}
+
+		reloadBoardFromRealtime()
+	})
+}, {immediate: true})
+
+watch(boardPresenceEvent, (eventName, previousEventName) => {
+	if (previousEventName) {
+		publishPresenceLeave(previousEventName)
+	}
+
+	unsubscribeBoardPresenceWs?.()
+	unsubscribeBoardPresenceWs = null
+	collaboratorPresence.value = {}
+
+	if (eventName === '') {
+		return
+	}
+
+	unsubscribeBoardPresenceWs = subscribe(eventName, (msg) => {
+		if (msg.event !== eventName) {
+			return
+		}
+
+		const payload = msg.data as RealtimeEnvelope<BoardPresencePayload> | undefined
+		if (!payload?.sender || !payload.data?.sessionId || payload.data.sessionId === localRealtimeSessionId) {
+			return
+		}
+
+		const key = getCollaboratorPresenceKey(payload.sender, payload.data.sessionId)
+		if (payload.data.left) {
+			const nextPresence = {...collaboratorPresence.value}
+			delete nextPresence[key]
+			collaboratorPresence.value = nextPresence
+			return
+		}
+
+		if (typeof payload.data.x !== 'number' || typeof payload.data.y !== 'number') {
+			return
+		}
+
+		collaboratorPresence.value = {
+			...collaboratorPresence.value,
+			[key]: {
+				sessionId: payload.data.sessionId,
+				x: payload.data.x,
+				y: payload.data.y,
+				activity: payload.data.activity,
+				sender: payload.sender,
+				updatedAt: Date.now(),
+			},
+		}
+	})
+}, {immediate: true})
+
+watch(wsConnected, (isConnected, wasConnected) => {
+	if (wasConnected && !isConnected) {
+		reloadBoardFromRealtime()
+	}
+})
+
 onMounted(() => {
 	refreshViewportHeight()
 	refreshCanvasSize()
+	collaboratorPresenceCleanupTimer = window.setInterval(pruneCollaboratorPresence, 2000)
 	window.addEventListener('mousedown', handleGlobalMouseDown)
 	window.addEventListener('mousemove', handlePointerMove)
 	window.addEventListener('mouseup', stopPointerTracking)
@@ -899,6 +1054,12 @@ useResizeObserver(canvasRef, refreshCanvasSize)
 useResizeObserver(viewportRef, refreshViewportHeight)
 
 onUnmounted(() => {
+	publishPresenceLeave()
+	unsubscribeBoardChangedWs?.()
+	unsubscribeBoardPresenceWs?.()
+	if (collaboratorPresenceCleanupTimer !== null) {
+		window.clearInterval(collaboratorPresenceCleanupTimer)
+	}
 	window.removeEventListener('mousedown', handleGlobalMouseDown)
 	window.removeEventListener('mousemove', handlePointerMove)
 	window.removeEventListener('mouseup', stopPointerTracking)
@@ -921,6 +1082,148 @@ const persistViewport = useDebounceFn(async () => {
 		viewportZoom: activeBoard.value.viewportZoom,
 	}))
 }, 150)
+
+const debouncedBoardReload = useDebounceFn(async (boardId: number) => {
+	await loadBoard(boardId)
+}, 250)
+
+function reloadBoardFromRealtime() {
+	if (activeBoard.value === null) {
+		return
+	}
+
+	if (draggingNodeId.value !== null || resizingNodeId.value !== null || editingTextNodeId.value !== null || pendingEdge.value !== null) {
+		pendingRealtimeReload.value = true
+		return
+	}
+
+	pendingRealtimeReload.value = false
+	void debouncedBoardReload(activeBoard.value.id)
+}
+
+function notifyBoardChanged(reason: string) {
+	if (boardChangedEvent.value === '') {
+		return
+	}
+
+	publish(boardChangedEvent.value, {
+		sessionId: localRealtimeSessionId,
+		reason,
+	} satisfies BoardChangedPayload)
+}
+
+function getCollaboratorDisplayName(sender: RealtimeSender) {
+	return sender.name || sender.username
+}
+
+function getCollaboratorActivityLabel(activity: CollaboratorActivity) {
+	switch (activity) {
+		case 'dragging':
+			return 'moving'
+		case 'resizing':
+			return 'resizing'
+		case 'connecting':
+			return 'connecting'
+		default:
+			return ''
+	}
+}
+
+function getCollaboratorPresenceKey(sender: RealtimeSender, sessionId: string) {
+	return `${sender.id}:${sessionId}`
+}
+
+function getCollaboratorColor(presence: CollaboratorPresence) {
+	const seed = `${presence.sender.id}:${presence.sessionId}`
+	let total = 0
+	for (const char of seed) {
+		total += char.charCodeAt(0)
+	}
+
+	return collaboratorColors[total % collaboratorColors.length]
+}
+
+function getCollaboratorCursorStyle(presence: CollaboratorPresence) {
+	return {
+		left: `${presence.x}px`,
+		top: `${presence.y}px`,
+	}
+}
+
+function getCurrentCollaboratorActivity(): CollaboratorActivity {
+	if (draggingNodeId.value !== null) {
+		return 'dragging'
+	}
+	if (resizingNodeId.value !== null) {
+		return 'resizing'
+	}
+	if (pendingEdge.value !== null) {
+		return 'connecting'
+	}
+
+	return 'idle'
+}
+
+function publishPresenceLeave(eventName = boardPresenceEvent.value) {
+	if (eventName === '') {
+		return
+	}
+
+	publish(eventName, {
+		sessionId: localRealtimeSessionId,
+		left: true,
+		activity: 'idle',
+	} satisfies BoardPresencePayload)
+}
+
+const publishBoardPresence = useThrottleFn((payload: BoardPresencePayload) => {
+	if (boardPresenceEvent.value === '') {
+		return
+	}
+
+	publish(boardPresenceEvent.value, payload)
+}, 60)
+
+function publishIdlePresence() {
+	if (lastPresencePoint.value === null) {
+		return
+	}
+
+	publishBoardPresence({
+		sessionId: localRealtimeSessionId,
+		x: lastPresencePoint.value.x,
+		y: lastPresencePoint.value.y,
+		activity: 'idle',
+	})
+}
+
+function handleCanvasPresenceMove(event: MouseEvent) {
+	if (activeBoard.value === null) {
+		return
+	}
+
+	const point = toCanvasPoint(event)
+	lastPresencePoint.value = point
+	publishBoardPresence({
+		sessionId: localRealtimeSessionId,
+		x: point.x,
+		y: point.y,
+		activity: getCurrentCollaboratorActivity(),
+	})
+}
+
+function handleCanvasPresenceLeave() {
+	lastPresencePoint.value = null
+	publishPresenceLeave()
+}
+
+function pruneCollaboratorPresence() {
+	const threshold = Date.now() - collaboratorPresenceTimeout
+	collaboratorPresence.value = Object.fromEntries(
+		Object.entries(collaboratorPresence.value)
+			.filter(([, presence]) => presence.updatedAt >= threshold),
+	)
+}
 
 function getTaskSearchParams(query: string): TaskFilterParams {
 	return {
@@ -993,6 +1296,7 @@ async function addNode(kind: VisionBoardNodeKind, position = getDefaultNodePosit
 	}))
 
 	activeBoard.value.nodes = [...selectedBoardNodes.value, node]
+	notifyBoardChanged('node.created')
 	refreshCanvasSize()
 
 	if (isTextNode) {
@@ -1104,6 +1408,7 @@ async function removeNode(nodeId: number) {
 	if (selectedNodeId.value === nodeId) {
 		selectedNodeId.value = null
 	}
+	notifyBoardChanged('node.deleted')
 	refreshCanvasSize()
 }
 
@@ -1113,6 +1418,7 @@ async function updateNode(node: IVisionBoardNode) {
 		projectId: props.projectId,
 		boardId: activeBoard.value?.id ?? node.boardId,
 	}))
+	notifyBoardChanged('node.updated')
 }
 
 function getNodeStyle(node: IVisionBoardNode) {
@@ -1386,6 +1692,7 @@ async function finishEdgeConnection(targetNodeId: number, targetHandle: Connecti
 	isEditingEdgeLabel.value = false
 	showEdgeColorPicker.value = false
 	pendingEdge.value = null
+	notifyBoardChanged('edge.created')
 }
 
 async function updateEdge(edge: IVisionBoardEdge) {
@@ -1394,6 +1701,7 @@ async function updateEdge(edge: IVisionBoardEdge) {
 		projectId: props.projectId,
 		boardId: activeBoard.value?.id ?? edge.boardId,
 	}))
+	notifyBoardChanged('edge.updated')
 }
 
 async function removeEdge(edgeId: number) {
@@ -1414,6 +1722,7 @@ async function removeEdge(edgeId: number) {
 	isEditingEdgeLabel.value = false
 	showEdgeColorPicker.value = false
 	edgeLabelDraft.value = ''
+	notifyBoardChanged('edge.deleted')
 }
 
 function getEdgeToolbarStyle(edge: IVisionBoardEdge) {
@@ -1798,14 +2107,25 @@ function selectEdge(edgeId: number) {
 	edgeLabelDraft.value = selectedBoardEdges.value.find(edge => edge.id === edgeId)?.label ?? ''
 }
 
-const draggingNodeId = ref<number | null>(null)
-const dragOffset = ref({x: 0, y: 0})
-const resizingNodeId = ref<number | null>(null)
-const resizeOrigin = ref({x: 0, y: 0, width: 0, height: 0})
-
 const persistDraggedNode = useDebounceFn(async (node: IVisionBoardNode) => {
 	await updateNode(node)
 }, 150)
+
+watch(
+	() => ({
+		draggingNodeId: draggingNodeId.value,
+		resizingNodeId: resizingNodeId.value,
+		editingTextNodeId: editingTextNodeId.value,
+		hasPendingEdge: pendingEdge.value !== null,
+	}),
+	({draggingNodeId, resizingNodeId, editingTextNodeId, hasPendingEdge}) => {
+		if (draggingNodeId !== null || resizingNodeId !== null || editingTextNodeId !== null || hasPendingEdge || !pendingRealtimeReload.value) {
+			return
+		}
+
+		reloadBoardFromRealtime()
+	},
+)
 
 function isInteractiveTarget(target: EventTarget | null) {
 	return target instanceof HTMLElement && target.closest('.vision-node__interactive, .vision-node-toolbar, .vision-edge-toolbar, .vision-edge-label, .vision-board-stage__viewport-controls')
@@ -1908,6 +2228,7 @@ function stopPointerTracking() {
 	resizingNodeId.value = null
 	pendingEdge.value = null
 	document.body.style.userSelect = ''
+	publishIdlePresence()
 }
 </script>
 
@@ -2008,6 +2329,33 @@ function stopPointerTracking() {
 .vision-board-stage__surface {
 	position: relative;
 	transform-origin: top left;
+}
+
+.vision-board-cursor {
+	position: absolute;
+	z-index: 4;
+	display: inline-flex;
+	align-items: center;
+	gap: .35rem;
+	pointer-events: none;
+	transform: translate(.1rem, -.1rem);
+}
+
+.vision-board-cursor__pointer {
+	filter: drop-shadow(0 2px 6px rgba(5, 7, 18, .45));
+	font-size: 1rem;
+	transform: rotate(45deg);
+}
+
+.vision-board-cursor__label {
+	border-radius: 999px;
+	box-shadow: 0 10px 24px rgba(5, 7, 18, .24);
+	color: #101826;
+	font-size: .72rem;
+	font-weight: 700;
+	line-height: 1;
+	padding: .28rem .5rem;
+	white-space: nowrap;
 }
 
 .vision-board-stage__edges {

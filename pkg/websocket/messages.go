@@ -19,6 +19,7 @@ package websocket
 const (
 	// Client actions
 	ActionAuth        = "auth"
+	ActionPublish     = "publish"
 	ActionSubscribe   = "subscribe"
 	ActionUnsubscribe = "unsubscribe"
 
@@ -34,6 +35,8 @@ type IncomingMessage struct {
 	Token string `json:"token,omitempty"`
 	// Event is set for subscribe/unsubscribe actions.
 	Event string `json:"event,omitempty"`
+	// Data is set for publish actions.
+	Data any `json:"data,omitempty"`
 }
 
 // OutgoingMessage represents a message from the server to the client.

@@ -197,10 +197,19 @@ function subscribe(event: string, callback: MessageCallback): () => void {
 	}
 }
 
+function publish(event: string, data: unknown) {
+	if (!authenticated.value) {
+		return
+	}
+
+	sendMessage({action: 'publish', event, data})
+}
+
 export function useWebSocket() {
 	return {
 		connect,
 		disconnect,
+		publish,
 		subscribe,
 		connected: readonly(connected),
 		authenticated: readonly(authenticated),

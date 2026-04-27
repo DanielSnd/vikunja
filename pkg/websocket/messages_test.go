@@ -42,6 +42,15 @@ func TestIncomingSubscribeMessageDeserialization(t *testing.T) {
 	assert.Equal(t, "notification.created", msg.Event)
 }
 
+func TestIncomingPublishMessageDeserialization(t *testing.T) {
+	raw := `{"action":"publish","event":"project.1.board.2.presence","data":{"sessionId":"abc"}}`
+	var msg IncomingMessage
+	err := json.Unmarshal([]byte(raw), &msg)
+	require.NoError(t, err)
+	assert.Equal(t, ActionPublish, msg.Action)
+	assert.Equal(t, "project.1.board.2.presence", msg.Event)
+}
+
 func TestOutgoingEventSerialization(t *testing.T) {
 	msg := OutgoingMessage{
 		Event: "notification.created",

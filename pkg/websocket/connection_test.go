@@ -82,6 +82,26 @@ func TestConnectionAcceptsValidKanbanEvent(t *testing.T) {
 	assert.True(t, conn.IsSubscribed(event))
 }
 
+func TestConnectionAcceptsValidVisionBoardEvents(t *testing.T) {
+	hub := NewHub()
+	conn := &Connection{
+		hub:           hub,
+		userID:        1,
+		authenticated: true,
+		subscriptions: make(map[string]bool),
+		send:          make(chan OutgoingMessage, 16),
+	}
+	hub.Register(conn)
+
+	changedEvent := "project.12.board.34.changed"
+	presenceEvent := "project.12.board.34.presence"
+	conn.handleMessage(context.Background(), IncomingMessage{Action: ActionSubscribe, Event: changedEvent})
+	conn.handleMessage(context.Background(), IncomingMessage{Action: ActionSubscribe, Event: presenceEvent})
+
+	assert.True(t, conn.IsSubscribed(changedEvent))
+	assert.True(t, conn.IsSubscribed(presenceEvent))
+}
+
 func TestConnectionRejectsInvalidEvent(t *testing.T) {
 	conn := &Connection{
 		userID:        1,
@@ -112,4 +132,30 @@ func TestConnectionRejectsActionsBeforeAuth(t *testing.T) {
 	msg := <-conn.send
 	assert.Equal(t, "auth_required", msg.Error)
 	assert.False(t, conn.IsSubscribed("notification.created"))
+}
+
+func TestConnectionRejectsPublishBeforeAuth(t *testing.T) {
+	conn := &Connection{
+		userID:        0,
+		authenticated: false,
+		subscriptions: make(map[string]bool),
+		send:          make(chan OutgoingMessage, 16),
+	}
+
+	conn.handleMessage(context.Background(), IncomingMessage{
+		Action: ActionPublish,
+		Event:  "project.12.board.34.presence",
+		Data:   map[string]any{"sessionId": "abc"},
+	})
+
+	msg := <-conn.send
+	assert.Equal(t, "auth_required", msg.Error)
+}
+
+func TestParseBoardEvent(t *testing.T) {
+	projectID, boardID, kind, ok := parseBoardEvent("project.12.board.34.changed")
+	assert.True(t, ok)
+	assert.EqualValues(t, 12, projectID)
+	assert.EqualValues(t, 34, boardID)
+	assert.Equal(t, "changed", kind)
 }

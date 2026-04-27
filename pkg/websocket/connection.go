@@ -20,11 +20,15 @@ import (
 	"context"
 	"encoding/json"
 	"regexp"
+	"strconv"
 	"sync"
 	"time"
 
+	"code.vikunja.io/api/pkg/db"
 	"code.vikunja.io/api/pkg/log"
+	"code.vikunja.io/api/pkg/models"
 	"code.vikunja.io/api/pkg/modules/auth"
+	"code.vikunja.io/api/pkg/user"
 
 	"github.com/coder/websocket"
 )
@@ -47,6 +51,17 @@ type Connection struct {
 	subscriptions map[string]bool
 
 	send chan OutgoingMessage
+}
+
+type publishedEventEnvelope struct {
+	Sender publishedEventSender `json:"sender"`
+	Data   any                  `json:"data,omitempty"`
+}
+
+type publishedEventSender struct {
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	Username string `json:"username"`
 }
 
 // NewConnection creates a new unauthenticated Connection.
@@ -160,6 +175,19 @@ func (c *Connection) handleMessage(ctx context.Context, msg IncomingMessage) boo
 		}
 		c.Unsubscribe(msg.Event)
 		log.Debugf("WebSocket: user %d unsubscribed from %s", c.UserID(), msg.Event)
+	case ActionPublish:
+		if !c.IsAuthenticated() {
+			c.sendError("auth_required", "")
+			return true
+		}
+		if !isValidEvent(msg.Event) {
+			c.sendError("invalid_event", msg.Event)
+			return true
+		}
+		if err := c.publishEvent(msg.Event, msg.Data); err != nil {
+			log.Warningf("WebSocket: user %d cannot publish %s: %v", c.UserID(), msg.Event, err)
+			c.sendError("forbidden", msg.Event)
+		}
 	default:
 		log.Warningf("WebSocket: unknown action %q", msg.Action)
 	}
@@ -270,7 +298,11 @@ var validEvents = map[string]bool{
 var dynamicEventPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`^project\.-?\d+\.view\.\d+\.kanban\.changed$`),
 	regexp.MustCompile(`^project\.-?\d+\.task\.\d+\.changed$`),
+	regexp.MustCompile(`^project\.\d+\.board\.\d+\.changed$`),
+	regexp.MustCompile(`^project\.\d+\.board\.\d+\.presence$`),
 }
+
+var boardEventPattern = regexp.MustCompile(`^project\.(\d+)\.board\.(\d+)\.(changed|presence)$`)
 
 func isValidEvent(event string) bool {
 	if validEvents[event] {
@@ -284,4 +316,87 @@ func isValidEvent(event string) bool {
 	}
 
 	return false
+}
+
+func (c *Connection) publishEvent(event string, data any) error {
+	projectID, boardID, kind, ok := parseBoardEvent(event)
+	if !ok {
+		return models.ErrGenericForbidden{}
+	}
+
+	s := db.NewSession()
+	defer s.Close()
+
+	board := &models.VisionBoard{
+		ID:        boardID,
+		ProjectID: projectID,
+	}
+
+	currentUser, err := user.GetUserByID(s, c.UserID())
+	if err != nil {
+		return err
+	}
+
+	switch kind {
+	case "changed":
+		can, err := board.CanUpdate(s, currentUser)
+		if err != nil {
+			return err
+		}
+		if !can {
+			return models.ErrGenericForbidden{}
+		}
+	case "presence":
+		can, _, err := board.CanRead(s, currentUser)
+		if err != nil {
+			return err
+		}
+		if !can {
+			return models.ErrGenericForbidden{}
+		}
+	default:
+		return models.ErrGenericForbidden{}
+	}
+
+	users, hub, err := getProjectUsersForPublish(s, projectID)
+	if err != nil {
+		return err
+	}
+	if hub == nil {
+		return nil
+	}
+
+	payload := publishedEventEnvelope{
+		Sender: publishedEventSender{
+			ID:       currentUser.ID,
+			Name:     currentUser.Name,
+			Username: currentUser.Username,
+		},
+		Data: data,
+	}
+
+	for _, u := range users {
+		hub.PublishForUser(u.ID, event, payload)
+	}
+
+	return nil
+}
+
+func parseBoardEvent(event string) (projectID, boardID int64, kind string, ok bool) {
+	matches := boardEventPattern.FindStringSubmatch(event)
+	if len(matches) != 4 {
+		return 0, 0, "", false
+	}
+
+	projectID, err := strconv.ParseInt(matches[1], 10, 64)
+	if err != nil {
+		return 0, 0, "", false
+	}
+
+	boardID, err = strconv.ParseInt(matches[2], 10, 64)
+	if err != nil {
+		return 0, 0, "", false
+	}
+
+	return projectID, boardID, matches[3], true
 }
