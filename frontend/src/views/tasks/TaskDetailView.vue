@@ -1322,10 +1322,6 @@ watch(
 			return
 		}
 
-		visible.value = false
-		task.value = new TaskModel()
-		linkedVisionBoardId.value = null
-
 		try {
 			await loadTask(id)
 		} catch (e) {

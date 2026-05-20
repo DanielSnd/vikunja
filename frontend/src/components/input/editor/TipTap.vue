@@ -285,6 +285,11 @@ async function hydrateAttachmentImage(imageUrl: string, img: HTMLImageElement) {
 		return
 	}
 
+	const currentImageUrl = img.getAttribute('data-src')
+	if (currentImageUrl !== null && currentImageUrl !== imageUrl) {
+		return
+	}
+
 	if (typeof loadedAttachments.value[cacheKey] === 'undefined') {
 		const [taskId, attachmentId] = cacheKey.split('-').map(Number)
 
@@ -295,6 +300,11 @@ async function hydrateAttachmentImage(imageUrl: string, img: HTMLImageElement) {
 
 		const attachmentService = new AttachmentService()
 		loadedAttachments.value[cacheKey] = await attachmentService.getBlobUrl(attachment) as string
+	}
+
+	const latestImageUrl = img.getAttribute('data-src')
+	if (latestImageUrl !== null && latestImageUrl !== imageUrl) {
+		return
 	}
 
 	img.src = loadedAttachments.value[cacheKey] as string
