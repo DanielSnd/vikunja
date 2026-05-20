@@ -85,7 +85,6 @@
 			:key="entry.id"
 			class="time-tracking__entry"
 		>
-			
 			<div
 				v-if="editingId === entry.id"
 				class="time-tracking__editor"

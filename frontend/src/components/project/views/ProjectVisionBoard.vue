@@ -317,6 +317,12 @@
 								</div>
 
 								<div
+									v-if="marqueeSelection !== null"
+									class="vision-board-stage__marquee"
+									:style="marqueeSelectionStyle"
+								/>
+
+								<div
 									v-if="selectedNode !== null && selectedEdge === null"
 									class="vision-node-toolbar"
 									:style="getNodeToolbarStyle(selectedNode)"
@@ -716,6 +722,7 @@ import VisionBoardNodeService from '@/services/visionBoardNode'
 import TaskCollectionService, {getDefaultTaskFilterParams, type TaskFilterParams} from '@/services/taskCollection'
 import TaskService from '@/services/task'
 import {uploadFile} from '@/helpers/attachments'
+import {useCopyToClipboard} from '@/composables/useCopyToClipboard'
 import {useWebSocket} from '@/composables/useWebSocket'
 
 import BaseButton from '@/components/base/BaseButton.vue'
@@ -762,6 +769,51 @@ interface CollaboratorPresence {
 	updatedAt: number
 }
 
+interface ClipboardNodePayload {
+	id: number
+	kind: VisionBoardNodeKind
+	title: string
+	content: string
+	url: string
+	taskId: number
+	attachmentId: number
+	color: string
+	width: number
+	height: number
+	x: number
+	y: number
+	zIndex: number
+}
+
+interface ClipboardEdgePayload {
+	id: number
+	sourceNodeId: number
+	targetNodeId: number
+	sourceHandle: IVisionBoardEdge['sourceHandle']
+	targetHandle: IVisionBoardEdge['targetHandle']
+	label: string
+	color: string
+}
+
+interface VisionBoardClipboardPayload {
+	type: 'vikunja-vision-board-selection'
+	clipboardId: string
+	projectId: number
+	boardId: number
+	taskId: number
+	nodes: ClipboardNodePayload[]
+	edges: ClipboardEdgePayload[]
+}
+
+interface MarqueeSelectionState {
+	startX: number
+	startY: number
+	currentX: number
+	currentY: number
+	appendToSelection: boolean
+	baseNodeIds: number[]
+}
+
 const props = defineProps<{
 	projectId: number,
 	viewId: number,
@@ -775,6 +827,7 @@ const visionBoardNodeService = shallowReactive(new VisionBoardNodeService())
 const visionBoardEdgeService = shallowReactive(new VisionBoardEdgeService())
 const taskCollectionService = shallowReactive(new TaskCollectionService())
 const taskService = shallowReactive(new TaskService())
+const copyToClipboard = useCopyToClipboard()
 const {connected: wsConnected, publish, subscribe} = useWebSocket()
 
 const boards = ref<IVisionBoard[]>([])
@@ -796,6 +849,7 @@ const textDrafts = ref<Record<number, string>>({})
 const editingTextNodeId = ref<number | null>(null)
 const editingCardTaskNodeId = ref<number | null>(null)
 const selectedNodeId = ref<number | null>(null)
+const selectedNodeIds = ref<number[]>([])
 const selectedEdgeId = ref<number | null>(null)
 const isEditingEdgeLabel = ref(false)
 const showEdgeColorPicker = ref(false)
@@ -834,6 +888,8 @@ const draggingNodeId = ref<number | null>(null)
 const dragOffset = ref({x: 0, y: 0})
 const resizingNodeId = ref<number | null>(null)
 const resizeOrigin = ref({x: 0, y: 0, width: 0, height: 0})
+const marqueeSelection = ref<MarqueeSelectionState | null>(null)
+const clipboardPasteCount = ref(0)
 
 const selectedBoardIdQuery = useRouteQuery('visionBoardId')
 
@@ -842,6 +898,9 @@ const textEditorRefs = new Map<number, HTMLTextAreaElement>()
 let unsubscribeBoardChangedWs: (() => void) | null = null
 let unsubscribeBoardPresenceWs: (() => void) | null = null
 let collaboratorPresenceCleanupTimer: ReturnType<typeof window.setInterval> | null = null
+let draggedSelectionOrigins: Record<number, {x: number, y: number}> = {}
+let latestVisionBoardClipboard: VisionBoardClipboardPayload | null = null
+let latestVisionBoardClipboardImageUrls: Record<number, string> = {}
 
 const pendingEdge = ref<null | {
 	sourceNodeId: number,
@@ -870,7 +929,7 @@ const boardChangedEvent = computed(() => boardRealtimeEventBase.value === '' ? '
 const boardPresenceEvent = computed(() => boardRealtimeEventBase.value === '' ? '' : `${boardRealtimeEventBase.value}.presence`)
 const activeCollaborators = computed(() => Object.values(collaboratorPresence.value))
 const selectedNode = computed(() => {
-	if (selectedNodeId.value === null) {
+	if (selectedNodeIds.value.length !== 1 || selectedNodeId.value === null) {
 		return null
 	}
 
@@ -883,6 +942,76 @@ const selectedEdge = computed(() => {
 
 	return selectedBoardEdges.value.find(edge => edge.id === selectedEdgeId.value) ?? null
 })
+const selectedNodes = computed(() => selectedBoardNodes.value.filter(node => selectedNodeIds.value.includes(node.id)))
+const marqueeSelectionStyle = computed(() => {
+	if (marqueeSelection.value === null) {
+		return {}
+	}
+
+	return {
+		left: `${Math.min(marqueeSelection.value.startX, marqueeSelection.value.currentX)}px`,
+		top: `${Math.min(marqueeSelection.value.startY, marqueeSelection.value.currentY)}px`,
+		width: `${Math.abs(marqueeSelection.value.currentX - marqueeSelection.value.startX)}px`,
+		height: `${Math.abs(marqueeSelection.value.currentY - marqueeSelection.value.startY)}px`,
+	}
+})
+
+function getUniqueExistingNodeIds(nodeIds: number[]) {
+	const existingNodeIds = new Set(selectedBoardNodes.value.map(node => node.id))
+	return [...new Set(nodeIds)].filter(nodeId => existingNodeIds.has(nodeId))
+}
+
+function setSelectedNodeIds(nodeIds: number[], primaryNodeId: number | null = null) {
+	const nextSelectedNodeIds = getUniqueExistingNodeIds(nodeIds)
+	selectedNodeIds.value = nextSelectedNodeIds
+
+	if (nextSelectedNodeIds.length === 0) {
+		selectedNodeId.value = null
+		return
+	}
+
+	if (primaryNodeId !== null && nextSelectedNodeIds.includes(primaryNodeId)) {
+		selectedNodeId.value = primaryNodeId
+		return
+	}
+
+	selectedNodeId.value = nextSelectedNodeIds[0]
+}
+
+function clearNodeSelection() {
+	setSelectedNodeIds([])
+}
+
+function selectSingleNode(nodeId: number) {
+	setSelectedNodeIds([nodeId], nodeId)
+}
+
+function getNodesWithinSelectionBounds(bounds: {left: number, top: number, right: number, bottom: number}) {
+	return selectedBoardNodes.value
+		.filter(node => node.x < bounds.right && node.x + node.width > bounds.left && node.y < bounds.bottom && node.y + node.height > bounds.top)
+		.map(node => node.id)
+}
+
+function updateMarqueeSelectionNodeIds() {
+	if (marqueeSelection.value === null) {
+		return
+	}
+
+	const marqueeNodeIds = getNodesWithinSelectionBounds({
+		left: Math.min(marqueeSelection.value.startX, marqueeSelection.value.currentX),
+		top: Math.min(marqueeSelection.value.startY, marqueeSelection.value.currentY),
+		right: Math.max(marqueeSelection.value.startX, marqueeSelection.value.currentX),
+		bottom: Math.max(marqueeSelection.value.startY, marqueeSelection.value.currentY),
+	})
+	const nextSelectedNodeIds = marqueeSelection.value.appendToSelection
+		? [...marqueeSelection.value.baseNodeIds, ...marqueeNodeIds]
+		: marqueeNodeIds
+
+	const primaryNodeId = marqueeNodeIds.length > 0
+		? marqueeNodeIds[marqueeNodeIds.length - 1]
+		: nextSelectedNodeIds[0] ?? null
+	setSelectedNodeIds(nextSelectedNodeIds, primaryNodeId)
+}
 
 function setNodeRef(nodeId: number, element: Element | null) {
 	if (!(element instanceof HTMLElement)) {
@@ -989,6 +1118,7 @@ async function loadBoard(boardId: number) {
 	collaboratorPresence.value = {}
 	editingTextNodeId.value = null
 	selectedNodeId.value = null
+	selectedNodeIds.value = []
 	selectedEdgeId.value = null
 	isEditingEdgeLabel.value = false
 	showEdgeColorPicker.value = false
@@ -999,6 +1129,9 @@ async function loadBoard(boardId: number) {
 	edgeLabelDraft.value = ''
 	nodeTitleDraft.value = ''
 	pendingEdge.value = null
+	marqueeSelection.value = null
+	clipboardPasteCount.value = 0
+	draggedSelectionOrigins = {}
 	await hydrateCardTasks()
 	await hydrateImageNodeUrls()
 	await nextTick()
@@ -1453,12 +1586,15 @@ async function addNode(
 	kind: VisionBoardNodeKind,
 	position = getDefaultNodePosition(),
 	overrides: Partial<IVisionBoardNode> = {},
+	options: {startEditing?: boolean, selectAfterCreate?: boolean} = {},
 ): Promise<IVisionBoardNode | undefined> {
 	if (activeBoard.value === null) {
 		return
 	}
 
 	const isTextNode = kind === 'text'
+	const shouldStartEditing = options.startEditing ?? isTextNode
+	const shouldSelectAfterCreate = options.selectAfterCreate ?? true
 	const node = await visionBoardNodeService.create(new VisionBoardNodeModel({
 		projectId: props.projectId,
 		boardId: activeBoard.value.id,
@@ -1477,10 +1613,10 @@ async function addNode(
 	notifyBoardChanged('node.created')
 	refreshCanvasSize()
 
-	if (isTextNode) {
+	if (isTextNode && shouldStartEditing) {
 		await startTextEdit(node)
-	} else {
-		selectedNodeId.value = node.id
+	} else if (shouldSelectAfterCreate) {
+		selectSingleNode(node.id)
 	}
 
 	return node
@@ -1622,28 +1758,36 @@ async function loadExistingImageAttachments() {
 }
 
 async function removeNode(nodeId: number) {
+	await removeNodes([nodeId])
+}
+
+async function removeNodes(nodeIds: number[]) {
 	if (activeBoard.value === null) {
 		return
 	}
 
-	const edgesToDelete = selectedBoardEdges.value.filter(edge => edge.sourceNodeId === nodeId || edge.targetNodeId === nodeId)
+	const nodeIdSet = new Set(nodeIds)
+	const edgesToDelete = selectedBoardEdges.value.filter(edge => nodeIdSet.has(edge.sourceNodeId) || nodeIdSet.has(edge.targetNodeId))
 	for (const edge of edgesToDelete) {
 		await removeEdge(edge.id)
 	}
 
-	await visionBoardNodeService.delete(new VisionBoardNodeModel({
-		projectId: props.projectId,
-		boardId: activeBoard.value.id,
-		id: nodeId,
-	}))
+	for (const nodeId of nodeIds) {
+		await visionBoardNodeService.delete(new VisionBoardNodeModel({
+			projectId: props.projectId,
+			boardId: activeBoard.value.id,
+			id: nodeId,
+		}))
+	}
 
-	activeBoard.value.nodes = selectedBoardNodes.value.filter(node => node.id !== nodeId)
-	if (editingTextNodeId.value === nodeId) {
+	activeBoard.value.nodes = selectedBoardNodes.value.filter(node => !nodeIdSet.has(node.id))
+	if (editingTextNodeId.value !== null && nodeIdSet.has(editingTextNodeId.value)) {
 		editingTextNodeId.value = null
 	}
-	if (selectedNodeId.value === nodeId) {
-		selectedNodeId.value = null
+	if (selectedEdgeId.value !== null && edgesToDelete.some(edge => edge.id === selectedEdgeId.value)) {
+		selectedEdgeId.value = null
 	}
+	setSelectedNodeIds(selectedNodeIds.value.filter(nodeId => !nodeIdSet.has(nodeId)))
 	notifyBoardChanged('node.deleted')
 	refreshCanvasSize()
 }
@@ -1695,7 +1839,7 @@ function getCardTask(node: IVisionBoardNode) {
 }
 
 function isNodeSelected(nodeId: number) {
-	return selectedNodeId.value === nodeId || pendingEdge.value?.sourceNodeId === nodeId
+	return selectedNodeIds.value.includes(nodeId) || pendingEdge.value?.sourceNodeId === nodeId
 }
 
 function getNodeAnchor(nodeId: number, handle: IVisionBoardEdge['sourceHandle']) {
@@ -1884,6 +2028,7 @@ function toggleFullscreen() {
 function handleWindowKeydown(event: KeyboardEvent) {
 	const target = event.target as HTMLElement | null
 	const isTypingTarget = target instanceof HTMLElement && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+	const hasModifier = event.ctrlKey || event.metaKey
 
 	if (event.key === 'Escape' && isFullscreen.value && editingTextNodeId.value === null) {
 		isFullscreen.value = false
@@ -1897,15 +2042,29 @@ function handleWindowKeydown(event: KeyboardEvent) {
 		cancelEdgeLabelEdit()
 	}
 
+	if (event.key === 'Escape' && marqueeSelection.value !== null) {
+		marqueeSelection.value = null
+	}
+
 	if ((event.key === 'Delete' || event.key === 'Backspace') && selectedEdgeId.value !== null && !isTypingTarget) {
 		event.preventDefault()
 		void removeEdge(selectedEdgeId.value)
+	}
+
+	if ((event.key === 'Delete' || event.key === 'Backspace') && selectedNodeIds.value.length > 0 && !isTypingTarget) {
+		event.preventDefault()
+		void removeNodes(selectedNodeIds.value)
+	}
+
+	if (hasModifier && event.key.toLowerCase() === 'c' && selectedNodeIds.value.length > 0 && !isTypingTarget) {
+		event.preventDefault()
+		void copySelectedNodesToClipboard()
 	}
 }
 
 function startEdgeConnection(nodeId: number, handle: ConnectionHandle, event: MouseEvent) {
 	canvasRef.value?.focus()
-	selectedNodeId.value = nodeId
+	selectSingleNode(nodeId)
 	selectedEdgeId.value = null
 	isEditingEdgeLabel.value = false
 	showEdgeColorPicker.value = false
@@ -2284,7 +2443,7 @@ async function startTextEdit(node: IVisionBoardNode) {
 		return
 	}
 
-	selectedNodeId.value = node.id
+	selectSingleNode(node.id)
 	selectedEdgeId.value = null
 	isEditingEdgeLabel.value = false
 	showEdgeColorPicker.value = false
@@ -2306,7 +2465,7 @@ async function finishTextEdit(node: IVisionBoardNode) {
 	node.content = textDrafts.value[node.id] ?? ''
 	node.title = node.content
 	editingTextNodeId.value = null
-	selectedNodeId.value = node.id
+	selectSingleNode(node.id)
 	await updateNode(node)
 }
 
@@ -2317,7 +2476,8 @@ function handleCanvasMouseDown(event: MouseEvent) {
 		return
 	}
 
-	selectedNodeId.value = null
+	const baseSelection = event.ctrlKey || event.metaKey ? [...selectedNodeIds.value] : []
+	clearNodeSelection()
 	selectedEdgeId.value = null
 	isEditingEdgeLabel.value = false
 	showEdgeColorPicker.value = false
@@ -2325,14 +2485,23 @@ function handleCanvasMouseDown(event: MouseEvent) {
 	editingNodeTitleId.value = null
 	pendingEdge.value = null
 
-	if (editingTextNodeId.value === null) {
-		return
+	if (editingTextNodeId.value !== null) {
+		const node = getNodeById(editingTextNodeId.value)
+		if (node) {
+			void finishTextEdit(node)
+		}
 	}
 
-	const node = getNodeById(editingTextNodeId.value)
-	if (node) {
-		void finishTextEdit(node)
+	const point = toCanvasPoint(event)
+	marqueeSelection.value = {
+		startX: point.x,
+		startY: point.y,
+		currentX: point.x,
+		currentY: point.y,
+		appendToSelection: event.ctrlKey || event.metaKey,
+		baseNodeIds: baseSelection,
 	}
+	updateMarqueeSelectionNodeIds()
 }
 
 function handleCanvasScroll() {
@@ -2384,6 +2553,13 @@ async function handleCanvasPaste(event: ClipboardEvent) {
 		return
 	}
 
+	const clipboardPayload = getClipboardVisionBoardPayload(event)
+	if (clipboardPayload !== null) {
+		event.preventDefault()
+		await pasteVisionBoardSelection(clipboardPayload)
+		return
+	}
+
 	const file = getClipboardImageFile(event)
 	if (file === null) {
 		return
@@ -2393,10 +2569,193 @@ async function handleCanvasPaste(event: ClipboardEvent) {
 	await createImageNodeFromFile(file)
 }
 
+const clipboardPrefix = 'vikunja-vision-board:'
+
+function buildVisionBoardClipboardPayload(): VisionBoardClipboardPayload | null {
+	if (activeBoard.value === null || selectedNodes.value.length === 0) {
+		return null
+	}
+
+	const nodeIdSet = new Set(selectedNodeIds.value)
+	return {
+		type: 'vikunja-vision-board-selection',
+		clipboardId: typeof crypto !== 'undefined' && 'randomUUID' in crypto
+			? crypto.randomUUID()
+			: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+		projectId: props.projectId,
+		boardId: activeBoard.value.id,
+		taskId: activeBoard.value.taskId,
+		nodes: selectedNodes.value.map(node => ({
+			id: node.id,
+			kind: node.kind,
+			title: node.title,
+			content: node.content,
+			url: node.url,
+			taskId: node.taskId,
+			attachmentId: node.attachmentId,
+			color: node.color,
+			width: node.width,
+			height: node.height,
+			x: node.x,
+			y: node.y,
+			zIndex: node.zIndex,
+		})),
+		edges: selectedBoardEdges.value
+			.filter(edge => nodeIdSet.has(edge.sourceNodeId) && nodeIdSet.has(edge.targetNodeId))
+			.map(edge => ({
+				id: edge.id,
+				sourceNodeId: edge.sourceNodeId,
+				targetNodeId: edge.targetNodeId,
+				sourceHandle: edge.sourceHandle,
+				targetHandle: edge.targetHandle,
+				label: edge.label,
+				color: edge.color,
+			})),
+	}
+}
+
+async function copySelectedNodesToClipboard() {
+	const payload = buildVisionBoardClipboardPayload()
+	if (payload === null) {
+		return
+	}
+
+	latestVisionBoardClipboard = payload
+	latestVisionBoardClipboardImageUrls = Object.fromEntries(
+		payload.nodes
+			.filter(node => node.kind === 'image')
+			.map(node => [node.id, nodeImageBlobUrls.value[node.id] || '']),
+	)
+	clipboardPasteCount.value = 0
+	await copyToClipboard(`${clipboardPrefix}${JSON.stringify(payload)}`)
+}
+
+function getClipboardVisionBoardPayload(event: ClipboardEvent) {
+	const text = event.clipboardData?.getData('text/plain')?.trim() ?? ''
+	if (!text.startsWith(clipboardPrefix)) {
+		return null
+	}
+
+	try {
+		const payload = JSON.parse(text.slice(clipboardPrefix.length)) as VisionBoardClipboardPayload
+		if (payload.type !== 'vikunja-vision-board-selection' || !Array.isArray(payload.nodes) || !Array.isArray(payload.edges)) {
+			return null
+		}
+
+		return payload
+	} catch {
+		return null
+	}
+}
+
+async function duplicateAttachmentForPaste(node: ClipboardNodePayload, payload: VisionBoardClipboardPayload) {
+	if (activeBoard.value === null || node.kind !== 'image' || node.attachmentId <= 0) {
+		return 0
+	}
+
+	if (payload.taskId === activeBoard.value.taskId) {
+		return node.attachmentId
+	}
+
+	if (latestVisionBoardClipboard?.clipboardId !== payload.clipboardId) {
+		return 0
+	}
+
+	const imageSrc = latestVisionBoardClipboardImageUrls[node.id]
+	if (!imageSrc) {
+		return 0
+	}
+
+	try {
+		const response = await fetch(imageSrc)
+		const blob = await response.blob()
+		const extension = blob.type.split('/')[1] || 'png'
+		const file = new File([blob], node.title || `vision-board-image.${extension}`, {type: blob.type || 'image/png'})
+		const [attachment] = await uploadFile(activeBoard.value.taskId, file)
+		return attachment.id
+	} catch {
+		return 0
+	}
+}
+
+async function pasteVisionBoardSelection(payload: VisionBoardClipboardPayload) {
+	if (activeBoard.value === null || payload.nodes.length === 0) {
+		return
+	}
+
+	const minX = Math.min(...payload.nodes.map(node => node.x))
+	const minY = Math.min(...payload.nodes.map(node => node.y))
+	const maxX = Math.max(...payload.nodes.map(node => node.x + node.width))
+	const maxY = Math.max(...payload.nodes.map(node => node.y + node.height))
+	const groupWidth = maxX - minX
+	const groupHeight = maxY - minY
+	const center = getViewportCenterPosition()
+	const offsetX = Math.max(48, Math.round(center.x - groupWidth / 2 + clipboardPasteCount.value * 32))
+	const offsetY = Math.max(48, Math.round(center.y - groupHeight / 2 + clipboardPasteCount.value * 32))
+	const nodeIdMap = new Map<number, number>()
+	const createdNodes: IVisionBoardNode[] = []
+
+	for (const node of payload.nodes) {
+		const attachmentId = await duplicateAttachmentForPaste(node, payload)
+		const createdNode = await addNode(node.kind, {
+			x: offsetX + (node.x - minX),
+			y: offsetY + (node.y - minY),
+		}, {
+			title: node.title,
+			content: node.content,
+			url: node.url,
+			taskId: node.taskId,
+			attachmentId,
+			color: node.color,
+			width: node.width,
+			height: node.height,
+			zIndex: node.zIndex,
+		}, {
+			startEditing: false,
+			selectAfterCreate: false,
+		})
+		if (!createdNode) {
+			continue
+		}
+
+		nodeIdMap.set(node.id, createdNode.id)
+		createdNodes.push(createdNode)
+	}
+
+	for (const edge of payload.edges) {
+		const sourceNodeId = nodeIdMap.get(edge.sourceNodeId)
+		const targetNodeId = nodeIdMap.get(edge.targetNodeId)
+		if (!sourceNodeId || !targetNodeId) {
+			continue
+		}
+
+		const createdEdge = await visionBoardEdgeService.create(new VisionBoardEdgeModel({
+			projectId: props.projectId,
+			boardId: activeBoard.value.id,
+			sourceNodeId,
+			targetNodeId,
+			sourceHandle: edge.sourceHandle,
+			targetHandle: edge.targetHandle,
+			label: edge.label,
+			color: edge.color,
+		}))
+
+		activeBoard.value.edges = [...selectedBoardEdges.value, createdEdge]
+	}
+
+	setSelectedNodeIds(createdNodes.map(node => node.id), createdNodes[0]?.id ?? null)
+	selectedEdgeId.value = null
+	clipboardPasteCount.value += 1
+	await hydrateCardTasks()
+	await hydrateImageNodeUrls()
+	refreshCanvasSize()
+	notifyBoardChanged('selection.pasted')
+}
+
 function selectEdge(edgeId: number) {
 	canvasRef.value?.focus()
 	selectedEdgeId.value = edgeId
-	selectedNodeId.value = null
+	clearNodeSelection()
 	isEditingEdgeLabel.value = false
 	showEdgeColorPicker.value = false
 	showNodeColorPicker.value = false
@@ -2444,7 +2803,11 @@ function startDrag(node: IVisionBoardNode, event: MouseEvent) {
 
 	canvasRef.value?.focus()
 
-	selectedNodeId.value = node.id
+	if (!isNodeSelected(node.id)) {
+		selectSingleNode(node.id)
+	} else {
+		setSelectedNodeIds(selectedNodeIds.value, node.id)
+	}
 	selectedEdgeId.value = null
 	isEditingEdgeLabel.value = false
 	showEdgeColorPicker.value = false
@@ -2463,11 +2826,14 @@ function startDrag(node: IVisionBoardNode, event: MouseEvent) {
 		x: point.x - node.x,
 		y: point.y - node.y,
 	}
+	draggedSelectionOrigins = Object.fromEntries(
+		selectedNodes.value.map(selectedNode => [selectedNode.id, {x: selectedNode.x, y: selectedNode.y}]),
+	)
 }
 
 function startResize(node: IVisionBoardNode, event: MouseEvent) {
 	canvasRef.value?.focus()
-	selectedNodeId.value = node.id
+	selectSingleNode(node.id)
 	selectedEdgeId.value = null
 	isEditingEdgeLabel.value = false
 	showEdgeColorPicker.value = false
@@ -2495,6 +2861,14 @@ function handlePointerMove(event: MouseEvent) {
 		return
 	}
 
+	if (marqueeSelection.value !== null) {
+		const point = toCanvasPoint(event)
+		marqueeSelection.value.currentX = point.x
+		marqueeSelection.value.currentY = point.y
+		updateMarqueeSelectionNodeIds()
+		return
+	}
+
 	if (draggingNodeId.value !== null) {
 		const node = getNodeById(draggingNodeId.value)
 		if (!node) {
@@ -2502,9 +2876,23 @@ function handlePointerMove(event: MouseEvent) {
 		}
 
 		const point = toCanvasPoint(event)
-		node.x = Math.max(0, point.x - dragOffset.value.x)
-		node.y = Math.max(0, point.y - dragOffset.value.y)
-		persistDraggedNode(node)
+		const origin = draggedSelectionOrigins[node.id] ?? {x: node.x, y: node.y}
+		const nextX = Math.max(0, point.x - dragOffset.value.x)
+		const nextY = Math.max(0, point.y - dragOffset.value.y)
+		const deltaX = nextX - origin.x
+		const deltaY = nextY - origin.y
+
+		for (const selectedNode of selectedNodes.value) {
+			const selectedOrigin = draggedSelectionOrigins[selectedNode.id]
+			if (!selectedOrigin) {
+				continue
+			}
+
+			selectedNode.x = Math.max(0, selectedOrigin.x + deltaX)
+			selectedNode.y = Math.max(0, selectedOrigin.y + deltaY)
+			persistDraggedNode(selectedNode)
+		}
+
 		refreshCanvasSize()
 		return
 	}
@@ -2528,6 +2916,8 @@ function stopPointerTracking() {
 	draggingNodeId.value = null
 	resizingNodeId.value = null
 	pendingEdge.value = null
+	marqueeSelection.value = null
+	draggedSelectionOrigins = {}
 	document.body.style.userSelect = ''
 	publishIdlePresence()
 }
@@ -2630,6 +3020,15 @@ function stopPointerTracking() {
 .vision-board-stage__surface {
 	position: relative;
 	transform-origin: top left;
+}
+
+.vision-board-stage__marquee {
+	position: absolute;
+	z-index: 1;
+	border: 1px solid rgba(116, 184, 255, .95);
+	background: rgba(116, 184, 255, .16);
+	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18);
+	pointer-events: none;
 }
 
 .vision-board-cursor {
@@ -2959,7 +3358,7 @@ function stopPointerTracking() {
 
 .vision-node__content--editor {
 	min-block-size: 100%;
-	color: #fff;
+	color: #ffffff;
 }
 
 .vision-node__text {
@@ -3007,10 +3406,10 @@ function stopPointerTracking() {
 
 .vision-node__title-label {
 	position: absolute;
-	top: 0;
-	left: 0;
+	inset-block-start: 0;
+	inset-inline-start: 0;
 	transform: translateY(-125%);
-	margin-bottom: .5rem;
+	margin-block-end: .5rem;
 	padding: .2rem .75rem;
 	border-radius: 6px;
 	color: var(--gray);

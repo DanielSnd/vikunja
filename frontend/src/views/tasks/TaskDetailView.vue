@@ -157,6 +157,7 @@
 					>
 						<Description
 							ref="descriptionRef"
+							:key="task.id"
 							:model-value="task"
 							:can-write="canWrite"
 							:attachment-upload="attachmentUpload"
@@ -1320,6 +1321,10 @@ watch(
 		if (id === undefined) {
 			return
 		}
+
+		visible.value = false
+		task.value = new TaskModel()
+		linkedVisionBoardId.value = null
 
 		try {
 			await loadTask(id)

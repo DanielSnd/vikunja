@@ -29,6 +29,7 @@
 				>
 					<TaskDetailView
 						v-if="selectedTaskId !== null"
+						:key="selectedTaskId"
 						:task-id="selectedTaskId"
 						display-mode="sidebar"
 						@close="closeTaskDetails"

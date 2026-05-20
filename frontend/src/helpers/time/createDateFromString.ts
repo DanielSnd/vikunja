@@ -6,12 +6,18 @@
  * @param dateString
  * @returns {Date}
  */
-export function createDateFromString(dateString: string | Date) {
+export function createDateFromString(dateString: string | number | Date) {
 	if (dateString instanceof Date) {
 		return dateString
 	}
 
-	if (dateString.includes('-')) {
+	// Keep RFC3339/ISO timestamps intact and only normalize legacy
+	// `YYYY-MM-DD HH:mm[:ss]` strings for Safari.
+	if (
+		typeof dateString === 'string' &&
+		dateString.includes('-') &&
+		!dateString.includes('T')
+	) {
 		dateString = dateString.replace(/-/g, '/')
 	}
 

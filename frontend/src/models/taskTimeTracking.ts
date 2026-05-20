@@ -3,6 +3,7 @@ import UserModel from './user'
 import type {ITaskTimeTracking, ITaskTimeTrackingSummary, ITaskTimeTrackingTimer} from '@/modelTypes/ITaskTimeTracking'
 import type {ITask} from '@/modelTypes/ITask'
 import TaskModel from './task'
+import {createDateFromString} from '@/helpers/time/createDateFromString'
 
 export class TaskTimeTrackingModel extends AbstractModel<ITaskTimeTracking> implements ITaskTimeTracking {
 	id = 0
@@ -17,7 +18,7 @@ export class TaskTimeTrackingModel extends AbstractModel<ITaskTimeTracking> impl
 		this.assignData(data)
 
 		this.user = new UserModel(this.user)
-		this.trackedAt = new Date(this.trackedAt)
+		this.trackedAt = this.trackedAt ? createDateFromString(this.trackedAt) : null
 	}
 }
 
@@ -34,8 +35,8 @@ export class TaskTimeTrackingTimerModel extends AbstractModel<ITaskTimeTrackingT
 		this.assignData(data)
 
 		this.task = this.task ? new TaskModel(this.task) : null
-		this.startedAt = new Date(this.startedAt)
-		this.stoppedAt = this.stoppedAt ? new Date(this.stoppedAt) : null
+		this.startedAt = this.startedAt ? createDateFromString(this.startedAt) : null
+		this.stoppedAt = this.stoppedAt ? createDateFromString(this.stoppedAt) : null
 	}
 }
 
