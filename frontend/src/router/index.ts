@@ -149,6 +149,11 @@ const router = createRouter({
 					},
 				},
 				{
+					path: '/user/settings/user-reports',
+					name: 'user.settings.userReports',
+					component: () => import('@/views/user/settings/UserReports.vue'),
+				},
+				{
 					path: '/user/settings/api-tokens',
 					name: 'user.settings.apiTokens',
 					component: () => import('@/views/user/settings/ApiTokens.vue'),

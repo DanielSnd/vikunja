@@ -247,6 +247,52 @@
         "title": "Webhook Notifications",
         "description": "Configure webhook URLs to receive POST requests when reminder or overdue events fire. These webhooks receive events from all your projects."
       },
+      "userReports": {
+        "title": "User Reports",
+        "description": "Create public report endpoints for your apps and route incoming feedback into Vikunja tasks.",
+        "create": "Create Application",
+        "createSuccess": "The report application was created.",
+        "saveSuccess": "The report application was updated.",
+        "deleteSuccess": "The report application was deleted.",
+        "deleteConfirm": "Delete the report application \"{name}\"?",
+        "accessKey": "Access Key",
+        "accessKeyRegenerated": "A new access key was generated.",
+        "empty": "No report applications have been created yet.",
+        "noBucket": "No bucket override",
+        "maxUploadSizePlaceholder": "Use instance default",
+        "regenerateAccessKey": "Regenerate Access Key",
+        "fields": {
+          "name": "Application Name",
+          "defaultProject": "Default Project",
+          "defaultBucket": "Default Bucket",
+          "maxUploadSize": "Maximum Upload Size (MB)"
+        },
+        "severity": {
+          "title": "Severity Routing",
+          "criticalProject": "Critical Project Override",
+          "criticalBucket": "Critical Bucket Override",
+          "criticalPriority": "Critical Priority",
+          "highProject": "High Project Override",
+          "highBucket": "High Bucket Override",
+          "highPriority": "High Priority",
+          "lowProject": "Low Project Override",
+          "lowBucket": "Low Bucket Override",
+          "lowPriority": "Low Priority"
+        },
+        "tokens": {
+          "title": "Report Tokens",
+          "latestToken": "Latest Token",
+          "newLabel": "Build label",
+          "create": "Create Token",
+          "label": "Label",
+          "created": "Created",
+          "enabled": "Enabled",
+          "statusEnabled": "Enabled",
+          "statusDisabled": "Disabled"
+        },
+        "tokenCreated": "The report token was created.",
+        "tokenUpdated": "The report token was updated."
+      },
       "apiTokens": {
         "title": "API Tokens",
         "general": "API tokens allow you to use Vikunja's API without user credentials.",

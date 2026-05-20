@@ -133,6 +133,7 @@ func FullInit() {
 	models.RegisterOldExportCleanupCron()
 	models.RegisterAddTaskToFilterViewCron()
 	models.RegisterTaskTimeTrackingTimerAutoStopCron()
+	models.RegisterUserReportDoneNotificationCron()
 	user.RegisterTokenCleanupCron()
 	models.RegisterSessionCleanupCron()
 	user.RegisterDeletionNotificationCron()

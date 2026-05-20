@@ -299,21 +299,24 @@ func RegisterRoutes(e *echo.Echo) {
 
 // unauthenticatedAPIPaths contains paths that don't require JWT authentication
 var unauthenticatedAPIPaths = map[string]bool{
-	"/api/v1/register":                       true,
-	"/api/v1/user/password/token":            true,
-	"/api/v1/user/password/reset":            true,
-	"/api/v1/user/confirm":                   true,
-	"/api/v1/login":                          true,
-	"/api/v1/user/token/refresh":             true,
-	"/api/v1/auth/openid/:provider/callback": true,
-	"/api/v1/test/:table":                    true,
-	"/api/v1/info":                           true,
-	"/api/v1/shares/:share/auth":             true,
-	"/api/v1/docs.json":                      true,
-	"/api/v1/docs":                           true,
-	"/api/v1/docs/redoc.standalone.js":       true,
-	"/api/v1/metrics":                        true,
-	"/api/v1/oauth/token":                    true,
+	"/api/v1/register":                            true,
+	"/api/v1/user/password/token":                 true,
+	"/api/v1/user/password/reset":                 true,
+	"/api/v1/user/confirm":                        true,
+	"/api/v1/login":                               true,
+	"/api/v1/user/token/refresh":                  true,
+	"/api/v1/auth/openid/:provider/callback":      true,
+	"/api/v1/test/:table":                         true,
+	"/api/v1/info":                                true,
+	"/api/v1/shares/:share/auth":                  true,
+	"/api/v1/docs.json":                           true,
+	"/api/v1/docs":                                true,
+	"/api/v1/docs/redoc.standalone.js":            true,
+	"/api/v1/metrics":                             true,
+	"/api/v1/oauth/token":                         true,
+	"/api/v1/user-reports/v1/create-report":       true,
+	"/api/v1/user-reports/v1/create-report-token": true,
+	"/api/v1/user-reports/v1/upload":              true,
 }
 
 // collectRoutesForAPITokens collects all routes for API token permission checking.
@@ -409,6 +412,10 @@ func registerAPIRoutes(a *echo.Group) {
 		ur.POST("/shares/:share/auth", apiv1.AuthenticateLinkShare)
 	}
 
+	ur.POST("/user-reports/v1/create-report", apiv1.CreateUserReport)
+	ur.POST("/user-reports/v1/create-report-token", apiv1.CreateUserReportToken)
+	ur.POST("/user-reports/v1/upload", apiv1.UploadUserReportAttachment)
+
 	// ===== Routes with Authentication =====
 	a.Use(SetupTokenMiddleware())
 
@@ -456,6 +463,15 @@ func registerAPIRoutes(a *echo.Group) {
 	}
 	u.GET("/sessions", sessionProvider.ReadAllWeb)
 	u.DELETE("/sessions/:session", sessionProvider.DeleteWeb)
+
+	a.GET("/user-reports/applications", apiv1.ListUserReportApplications)
+	a.PUT("/user-reports/applications", apiv1.CreateUserReportApplication)
+	a.POST("/user-reports/applications/:application", apiv1.UpdateUserReportApplication)
+	a.DELETE("/user-reports/applications/:application", apiv1.DeleteUserReportApplication)
+	a.POST("/user-reports/applications/:application/access-key/regenerate", apiv1.RegenerateUserReportAccessKey)
+	a.GET("/user-reports/applications/:application/tokens", apiv1.ListUserReportTokens)
+	a.PUT("/user-reports/applications/:application/tokens", apiv1.CreateUserReportApplicationToken)
+	a.POST("/user-reports/applications/:application/tokens/:token", apiv1.UpdateUserReportToken)
 
 	// User-level webhooks
 	if config.WebhooksEnabled.GetBool() {

@@ -150,6 +150,19 @@
                 "action": "Manage API Tokens"
             }
         },
+        "user_report": {
+            "done": {
+                "subject": {
+                    "single": "Your feedback for %[1]s has an update",
+                    "multiple": "Your feedback for %[1]s has updates"
+                },
+                "message": {
+                    "single": "An issue you reported has been marked as done.",
+                    "multiple": "Several issues you reported have been marked as done."
+                },
+                "footer": "Thanks for sending feedback."
+            }
+        },
         "common": {
             "have_nice_day": "Have a nice day!",
             "copy_url": "If the button above doesn't work, copy the url below and paste it in your browser's address bar:",

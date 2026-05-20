@@ -68,6 +68,10 @@ const navigationItems = computed(() => {
 			condition: caldavEnabled.value,
 		},
 		{
+			title: t('user.settings.userReports.title'),
+			routeName: 'user.settings.userReports',
+		},
+		{
 			title: t('user.settings.apiTokens.title'),
 			routeName: 'user.settings.apiTokens',
 		},
